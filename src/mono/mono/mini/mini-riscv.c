@@ -448,10 +448,22 @@ mono_arch_get_llvm_call_info (MonoCompile *cfg, MonoMethodSignature *sig)
 
 #endif
 
+/**
+ * mono_arch_create_vars:
+ *	before this function, mono_compile_create_vars() in mini.c
+ *	has process vars in a genetic ways. So just do some Arch
+ *	related process specified in ABI.
+ */
+
 void
 mono_arch_create_vars (MonoCompile *cfg)
 {
-	NOT_IMPLEMENTED;
+	// TODO: do not process any vars just for init implement.
+
+	// NOT_IMPLEMENTED;
+	// MonoMethodSignature *sig;
+
+	// sig = mono_method_signature_internal (cfg->method);
 }
 
 MonoInst *
@@ -459,12 +471,6 @@ mono_arch_emit_inst_for_method (MonoCompile *cfg, MonoMethod *cmethod,
                                 MonoMethodSignature *fsig, MonoInst **args)
 {
 	return NULL;
-}
-
-void
-mono_arch_emit_call (MonoCompile *cfg, MonoCallInst *call)
-{
-	NOT_IMPLEMENTED;
 }
 
 void
