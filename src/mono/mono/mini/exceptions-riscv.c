@@ -206,7 +206,23 @@ mono_arch_unwind_frame (MonoJitTlsData *jit_tls, MonoJitInfo *ji,
 
 		return TRUE;
 	} else if (*lmf) {
-		NOT_IMPLEMENTED;
+		g_assert ((((guint64)(*lmf)->previous_lmf) & 2) == 0);
+
+		frame->type = FRAME_TYPE_MANAGED_TO_NATIVE;
+
+		ji = mini_jit_info_table_find (domain, (gpointer)(*lmf)->pc, NULL);
+		if (!ji)
+			return FALSE;
+
+		memcpy (&new_ctx->gregs, (*lmf)->gregs, sizeof (host_mgreg_t) * RISCV_N_GREGS);
+		new_ctx->gregs[0] = (*lmf)->pc; // use [0] as pc reg since x0 is hard-wired zero
+
+		/* we substract 1, so that the IP points into the call instruction */
+		new_ctx->gregs[0]--;
+
+		*lmf = (MonoLMF*)(((gsize)(*lmf)->previous_lmf) & ~3);
+
+		return TRUE;
 	}
 
 	return FALSE;
