@@ -186,6 +186,39 @@ typedef struct {
 	guint8 *stack;
 } CallContext;
 
+typedef enum {
+	ArgInIReg,
+	ArgOnStack,
+	// ArgInFReg,
+	ArgStructByVal,
+	ArgStructByAddr,
+	ArgNone // only in void return type
+} ArgStorage;
+
+typedef struct {
+	gint32  offset;
+	guint16 vtsize; /* in param area */
+	guint8  reg;
+	ArgStorage storage;
+	/* Only if storage == ArgOnStack */
+	int arg_size; // Bytes, will always be rounded up/aligned to 8 byte boundary
+	// Size in bytes for small arguments
+	int byte_arg_size;
+	guint8 is_signed : 1;
+} ArgInfo;
+
+struct CallInfo {
+	int argsNum;
+	guint32 reg_usage;
+	gboolean on_stack;
+	gboolean vtype_retaddr;
+	guint32 stack_usage;
+	guint32 struct_ret;
+	ArgInfo ret;
+	ArgInfo sig_cookie;
+	ArgInfo args [1];
+};
+
 enum {
 	MONO_R_RISCV_IMM  = 1,
 	MONO_R_RISCV_B    = 2,
