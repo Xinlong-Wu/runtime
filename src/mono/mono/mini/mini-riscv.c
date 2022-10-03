@@ -473,6 +473,212 @@ mono_arch_emit_inst_for_method (MonoCompile *cfg, MonoMethod *cmethod,
 	return NULL;
 }
 
+/**
+ * add_int32_arg:
+ * 	Add Arguments into a0-a7 reg. 
+ * 	if there is no available store it into stack.
+ */
+static void
+add_arg(guint32 *nextArgReg, guint32 *stack_size, ArgInfo *ainfo) {
+
+	ainfo->offset = *stack_size;
+	// check if there is available Argument Regs
+	if (*nextArgReg > RISCV_A7) {
+		ainfo->storage = ArgOnStack;
+		ainfo->reg = RISCV_SP; /* in the caller */
+		// TODO: change stack size for different type
+		stack_size += 4;
+	}
+	else {
+		ainfo->storage = ArgInIReg;
+		ainfo->reg = *nextArgReg;
+		(*nextArgReg) ++;
+	}
+}
+
+/**
+ * get_call_info:
+ * 	create call info here.
+ *  allocate memory for *cinfo, and assign Regs for Arguments.
+ */
+CallInfo *
+get_call_info(MonoMemPool *mp, MonoMethodSignature *sig){
+
+	CallInfo *cinfo;
+	int paramNum = sig->hasthis + sig->param_count;
+	if (mp)
+		cinfo = mono_mempool_alloc0 (mp, sizeof (CallInfo) + (sizeof (ArgInfo) * paramNum));
+	else
+		cinfo = g_malloc0 (sizeof (CallInfo) + (sizeof (ArgInfo) * paramNum));
+
+
+	// process the store type of return val
+	MonoType *ret_type = mini_get_underlying_type (sig->ret);
+	switch (ret_type->type){
+		case MONO_TYPE_VOID:
+			cinfo->ret.storage = ArgNone;
+			break;
+		
+		default:
+			g_error ("Can't handle as return value 0x%x", ret_type->type);
+			break;
+	}
+
+	guint32 nextArgReg = RISCV_A0;
+	guint32 stack_size = 0;
+	// add this pointer as first argument if hasthis == true
+	if (sig->hasthis)
+		add_arg(&nextArgReg, &stack_size, cinfo->args + 0);
+
+	// TODO: only consider void return type for now, so skip the return reg.
+	guint32 paramStart = 0;
+	ArgStorage ret_storage = cinfo->ret.storage;
+	if(ret_type->type != ArgNone){
+		paramStart = 1;
+	}
+
+	// TODO: process if function call has variable parameter
+	if (!sig->pinvoke && (sig->call_convention == MONO_CALL_VARARG) && (nextArgReg == RISCV_A0)) {
+	}
+
+	// process other general Arguments
+	for(guint32 i = paramStart; i < sig->param_count; ++i){
+		ArgInfo *ainfo = &cinfo->args [sig->hasthis + i];
+		MonoType *ptype;
+
+		// process the variable parameter sig->sentinelpos mark the first VARARG
+		if (!sig->pinvoke && (sig->call_convention == MONO_CALL_VARARG) && (i == sig->sentinelpos)) {
+
+		}
+
+		ptype = mini_get_underlying_type (sig->params [i]);
+		switch (ptype->type)
+		{
+			case MONO_TYPE_I1:
+				ainfo->is_signed = 1;
+			case MONO_TYPE_U1:
+				add_arg (&nextArgReg, &stack_size, ainfo);
+				ainfo->byte_arg_size = 1;
+				break;
+			case MONO_TYPE_I2:
+				ainfo->is_signed = 1;
+			case MONO_TYPE_U2:
+				add_arg (&nextArgReg, &stack_size, ainfo);
+				ainfo->byte_arg_size = 2;
+				break;
+			case MONO_TYPE_I4:
+				ainfo->is_signed = 1;
+			case MONO_TYPE_U4:
+				add_arg (&nextArgReg, &stack_size, ainfo);
+				ainfo->byte_arg_size = 4;
+				break;
+			case MONO_TYPE_I8:
+				ainfo->is_signed = 1;
+			case MONO_TYPE_U8:
+				add_arg (&nextArgReg, &stack_size, ainfo);
+				ainfo->byte_arg_size = 8;
+				break;
+			case MONO_TYPE_I:
+				ainfo->is_signed = 1;
+			case MONO_TYPE_U:
+				add_arg (&nextArgReg, &stack_size, ainfo);
+				break;
+			
+			default:
+				g_error("Can't handle parameter with type value 0x%x", ret_type->type);
+				break;
+		}
+	}
+
+	cinfo->stack_usage = stack_size;
+	cinfo->reg_usage = nextArgReg;
+	return cinfo;
+}
+
+/**
+ * mono_arch_emit_call:
+ * 	we process all Args of a function call
+ *  (return, parameters)
+ */
+
+void
+mono_arch_emit_call (MonoCompile *cfg, MonoCallInst *call)
+{
+	MonoInst *in, *ins;
+	MonoMethodSignature *sig;
+
+	CallInfo *cinfo;
+	int is_virtual = 0;
+
+	sig = call->signature;
+	int paramNum = sig->param_count + sig->hasthis;
+
+	cinfo = get_call_info (cfg->mempool, sig);
+
+	if (COMPILE_LLVM (cfg)) {
+		/* We shouldn't be called in the llvm case */
+		cfg->disable_llvm = TRUE;
+		return;
+	}
+
+	/* 
+	 * Emit all arguments which are passed on the stack to prevent register
+	 * allocation problems.
+	 */
+	// TODO
+	int i;
+	for (i = 0; i < paramNum; i++)
+	{
+		ArgInfo *ainfo = cinfo->args + i;
+		MonoType *t;
+
+		if (sig->hasthis && i == 0)
+			t = mono_get_object_type ();
+		else
+			t = sig->params [i - sig->hasthis];
+
+		t = mini_get_underlying_type (t);
+		if (ainfo->storage == ArgOnStack){
+			NOT_IMPLEMENTED;
+		}
+	}
+	
+
+	/*
+	 * Emit all parameters passed in registers in non-reverse order for better readability
+	 * and to help the optimization in emit_prolog ().
+	 */
+	// TODO
+	for (i = 0; i < paramNum; ++i) {
+		ArgInfo *ainfo = cinfo->args + i;
+
+		in = call->args [i];
+
+		if (ainfo->storage == ArgInIReg)
+			// add_outarg_reg (cfg, call, ainfo->storage, ainfo->reg, in);
+			NOT_IMPLEMENTED;
+	}
+
+	/* Handle the case where there are no implicit arguments */
+	// TODO
+
+	/* Emit the inst of return by return type */
+	switch (cinfo->ret.storage){
+		default:
+			NOT_IMPLEMENTED;
+			break;
+		case ArgNone:
+			break;
+	}
+
+	/* setup LMF */
+	if (cfg->method->save_lmf) {
+		MONO_INST_NEW (cfg, ins, OP_SAVE_LMF);
+		MONO_ADD_INS (cfg->cbb, ins);
+	}
+
+}
+
 void
 mono_arch_emit_outarg_vt (MonoCompile *cfg, MonoInst *ins, MonoInst *src)
 {
