@@ -548,7 +548,7 @@ get_call_info(MonoMemPool *mp, MonoMethodSignature *sig){
 
 		// process the variable parameter sig->sentinelpos mark the first VARARG
 		if (!sig->pinvoke && (sig->call_convention == MONO_CALL_VARARG) && (i == sig->sentinelpos)) {
-
+			NOT_IMPLEMENTED;
 		}
 
 		ptype = mini_get_underlying_type (sig->params [i]);
@@ -595,12 +595,29 @@ get_call_info(MonoMemPool *mp, MonoMethodSignature *sig){
 	return cinfo;
 }
 
+static void
+add_outarg_reg (MonoCompile *cfg, MonoCallInst *call, ArgStorage storage, int reg, MonoInst *tree){
+	MonoInst *ins;
+
+	switch (storage) {
+		default:
+			NOT_IMPLEMENTED;
+			break;
+		case ArgInIReg:
+			MONO_INST_NEW (cfg, ins, OP_MOVE);
+			ins->dreg = mono_alloc_ireg_copy (cfg, tree->dreg);
+			ins->sreg1 = tree->dreg;
+			MONO_ADD_INS (cfg->cbb, ins);
+			mono_call_inst_add_outarg_reg (cfg, call, ins->dreg, reg, FALSE);
+			break;
+	}
+}
+
 /**
  * mono_arch_emit_call:
  * 	we process all Args of a function call
  *  (return, parameters)
  */
-
 void
 mono_arch_emit_call (MonoCompile *cfg, MonoCallInst *call)
 {
@@ -655,8 +672,7 @@ mono_arch_emit_call (MonoCompile *cfg, MonoCallInst *call)
 		in = call->args [i];
 
 		if (ainfo->storage == ArgInIReg)
-			// add_outarg_reg (cfg, call, ainfo->storage, ainfo->reg, in);
-			NOT_IMPLEMENTED;
+			add_outarg_reg (cfg, call, ainfo->storage, ainfo->reg, in);
 	}
 
 	/* Handle the case where there are no implicit arguments */
