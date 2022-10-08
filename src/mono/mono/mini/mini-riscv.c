@@ -721,10 +721,97 @@ mono_arch_decompose_long_opts (MonoCompile *cfg, MonoInst *long_ins)
 #endif
 }
 
+/*
+ * Set var information according to the calling convention. RISCV version.
+ */
 void
 mono_arch_allocate_vars (MonoCompile *cfg)
 {
-	NOT_IMPLEMENTED;
+	MonoMethodSignature *sig;
+	int stack_size = 0;
+	gint32 *stack_alloc_res;
+	guint32 locals_stack_size, locals_stack_align;
+	CallInfo *cinfo;
+
+	sig = mono_method_signature_internal (cfg->method);
+	if (!cfg->arch.cinfo)
+		cfg->arch.cinfo = get_call_info (cfg->mempool, sig);
+	cinfo = cfg->arch.cinfo;
+
+	cfg->arch.saved_iregs = cfg->used_int_regs;
+	if (cfg->method->save_lmf) {
+		/* Save all callee-saved registers normally, and restore them when unwinding through an LMF */
+		guint32 iregs_to_save = MONO_ARCH_CALLEE_SAVED_REGS & ~(1<<RISCV_SP);
+		cfg->arch.saved_iregs |= iregs_to_save;
+	}
+
+	/* Reserve space for callee saved registers */
+	for (int i = 0; i < RISCV_N_GREGS; ++i)
+		if (MONO_ARCH_IS_CALLEE_SAVED_REG (i) && (cfg->arch.saved_iregs & (1 << i))) {
+				stack_size += sizeof (target_mgreg_t);
+			}
+	
+	if (sig->ret->type != MONO_TYPE_VOID) {
+		NOT_IMPLEMENTED;
+	}
+
+	/* Allocate locals */
+	stack_alloc_res = mono_allocate_stack_slots (cfg, FALSE, &locals_stack_size, &locals_stack_align);
+	if (locals_stack_align) {
+		stack_size += (locals_stack_align - 1);
+		stack_size &= ~(locals_stack_align - 1);
+	}
+	cfg->locals_min_stack_offset = - (stack_size + locals_stack_size);
+	cfg->locals_max_stack_offset = - stack_size;
+
+	for (int i = cfg->locals_start; i < cfg->num_varinfo; i++) {
+		if (stack_alloc_res [i] != -1) {
+			MonoInst *ins = cfg->varinfo [i];
+			ins->opcode = OP_REGOFFSET;
+			ins->inst_basereg = cfg->frame_reg;
+			ins->inst_offset = - (stack_size + stack_alloc_res [i]);
+			printf ("allocated local %d to ", i); mono_print_ins (ins);
+		}
+	}
+	stack_size += locals_stack_size;
+
+	if (!sig->pinvoke && (sig->call_convention == MONO_CALL_VARARG)) {
+		NOT_IMPLEMENTED;
+	}
+
+	// insert prologue insts
+	for (int i = 0; i < sig->param_count + sig->hasthis; ++i){
+		MonoInst *ins = cfg->args [i];
+		if (ins->opcode != OP_REGVAR) {
+			ArgInfo *ainfo = &cinfo->args [i];
+			gboolean inreg = TRUE;
+
+			/* FIXME: Allocate volatile arguments to registers */
+			if (ins->flags & (MONO_INST_VOLATILE|MONO_INST_INDIRECT))
+				inreg = FALSE;
+
+			ins->opcode = OP_REGOFFSET;
+			switch (ainfo->storage) {
+				case ArgInIReg:
+					if (inreg) {
+						ins->opcode = OP_REGVAR;
+						ins->dreg = ainfo->reg;
+					}
+				break;
+				default:
+					NOT_IMPLEMENTED;
+					break;
+			}
+
+			/* following arguments are saved to the stack in the prolog */
+			if (!inreg) {
+				NOT_IMPLEMENTED;
+			}
+
+		}
+	}
+
+	cfg->stack_offset = stack_size;
 }
 
 void
