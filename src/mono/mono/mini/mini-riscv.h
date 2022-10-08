@@ -56,6 +56,7 @@
 
 #define MONO_ARCH_CALLEE_REGS        (0b11110000000000111111110000000000)
 #define MONO_ARCH_CALLEE_SAVED_REGS  (0b00001111111111000000001100000000)
+#define MONO_ARCH_IS_CALLEE_SAVED_REG(reg) (MONO_ARCH_CALLEE_SAVED_REGS & (1 << (reg)))
 
 #ifdef RISCV_FPABI_SOFT
 
@@ -155,6 +156,8 @@
 // #define MONO_ARCH_HAVE_INTERP_NATIVE_TO_MANAGED (1)
 
 typedef struct {
+	CallInfo *cinfo;
+	guint32 saved_iregs;
 } MonoCompileArch;
 
 #define MONO_CONTEXT_SET_LLVM_EXC_REG(ctx, exc) \
