@@ -814,10 +814,24 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 	cfg->stack_offset = stack_size;
 }
 
+/*
+ * mono_arch_lowering_pass:
+ *
+ *  Converts complex opcodes into simpler ones so that each IR instruction
+ * corresponds to one machine instruction.
+ */
 void
 mono_arch_lowering_pass (MonoCompile *cfg, MonoBasicBlock *bb)
 {
-	NOT_IMPLEMENTED;
+	MonoInst *ins,*n;
+	MONO_BB_FOR_EACH_INS_SAFE (bb, n, ins){
+		switch (ins->opcode){
+			default:
+				printf ("unable to lowering following IR:"); mono_print_ins (ins);
+				NOT_IMPLEMENTED;
+				break;
+		}
+	}
 }
 
 void
