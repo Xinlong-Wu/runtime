@@ -1017,7 +1017,43 @@ mono_arch_emit_epilog (MonoCompile *cfg)
 void
 mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 {
-	NOT_IMPLEMENTED;
+	MonoInst *ins;
+	MonoCallInst *call;
+	guint8 *code = cfg->native_code + cfg->code_len;
+	target_mgreg_t imm;
+	int start_offset, max_len;
+	int ins_cnt = 0;
+
+	start_offset = code - cfg->native_code;
+	g_assert (start_offset <= cfg->code_size);
+
+	MONO_BB_FOR_EACH_INS (bb, ins) {
+		guint offset = code - cfg->native_code;
+		set_code_cursor (cfg, code);
+		max_len = ins_get_size (ins->opcode);
+		code = realloc_code (cfg, max_len);
+
+		mono_debug_record_line_number (cfg, ins, offset);
+		if (cfg->verbose_level > 2) {
+			g_print ("    @ 0x%x\t", offset);
+			mono_print_ins_index (ins_cnt++, ins);
+		}
+
+		/* Check for virtual regs that snuck by */
+		g_assert ((ins->dreg >= -1) && (ins->dreg < 32));
+
+		switch (ins->opcode) {
+			default:
+				printf ("unable to lowering following IR:"); mono_print_ins (ins);
+				NOT_IMPLEMENTED;
+				break;
+		}
+
+		g_assertf ((code - cfg->native_code - offset) <= max_len,
+			   "wrong maximal instruction length of instruction %s (expected %d, got %d)",
+			   mono_inst_name (ins->opcode), max_len, (int)(code - cfg->native_code - offset));
+	}
+	set_code_cursor (cfg, code);
 }
 
 void
