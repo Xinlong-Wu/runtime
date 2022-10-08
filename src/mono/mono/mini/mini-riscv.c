@@ -733,6 +733,10 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 	guint32 locals_stack_size, locals_stack_align;
 	CallInfo *cinfo;
 
+	// save FP reg to stack firstly
+	cfg->frame_reg = RISCV_FP;
+	stack_size += sizeof (target_mgreg_t);
+
 	sig = mono_method_signature_internal (cfg->method);
 	if (!cfg->arch.cinfo)
 		cfg->arch.cinfo = get_call_info (cfg->mempool, sig);
@@ -741,16 +745,15 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 	cfg->arch.saved_iregs = cfg->used_int_regs;
 	if (cfg->method->save_lmf) {
 		/* Save all callee-saved registers normally, and restore them when unwinding through an LMF */
-		guint32 iregs_to_save = MONO_ARCH_CALLEE_SAVED_REGS & ~(1<<RISCV_SP);
-		cfg->arch.saved_iregs |= iregs_to_save;
+		cfg->arch.saved_iregs |= MONO_ARCH_CALLEE_SAVED_REGS;
 	}
 
 	/* Reserve space for callee saved registers */
-	for (int i = 0; i < RISCV_N_GREGS; ++i)
+	for (int i = 0; i < RISCV_N_GREGS; ++i){
 		if (MONO_ARCH_IS_CALLEE_SAVED_REG (i) && (cfg->arch.saved_iregs & (1 << i))) {
-				stack_size += sizeof (target_mgreg_t);
-			}
-	
+			stack_size += sizeof (target_mgreg_t);
+		}
+	}
 	if (sig->ret->type != MONO_TYPE_VOID) {
 		NOT_IMPLEMENTED;
 	}
@@ -779,7 +782,7 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 		NOT_IMPLEMENTED;
 	}
 
-	// insert prologue insts
+	// allocate vars
 	for (int i = 0; i < sig->param_count + sig->hasthis; ++i){
 		MonoInst *ins = cfg->args [i];
 		if (ins->opcode != OP_REGVAR) {
@@ -812,7 +815,6 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 	}
 
 	cfg->stack_offset = stack_size;
-	cfg->frame_reg = RISCV_FP;
 }
 
 /*
