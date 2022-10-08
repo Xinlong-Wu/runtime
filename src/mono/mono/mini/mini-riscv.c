@@ -980,21 +980,25 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 	// set up stack pointer
 	int stack_size = 0;
 	riscv_addi(code,RISCV_SP,RISCV_SP,-alloc_size);
-	printf("[0x%x, 0x%x, 0x%x, 0x%x]\n",*(code-4),*(code-3),*(code-2),*(code-1));
+	if (cfg->verbose_level > 2)
+		g_print("[0x%x, 0x%x, 0x%x, 0x%x]\n",*(code-4),*(code-3),*(code-2),*(code-1));
 
 	// save return value
 	stack_size += sizeof(target_mgreg_t);
 	code = mono_riscv_emit_store(code, RISCV_RA, RISCV_SP, alloc_size - stack_size);
-	printf("[0x%x, 0x%x, 0x%x, 0x%x]\n",*(code-4),*(code-3),*(code-2),*(code-1));
+	if (cfg->verbose_level > 2)
+		g_print("[0x%x, 0x%x, 0x%x, 0x%x]\n",*(code-4),*(code-3),*(code-2),*(code-1));
 
 	// save a0(fp) value
 	stack_size += sizeof(target_mgreg_t);
 	code = mono_riscv_emit_store(code, RISCV_FP, RISCV_SP, alloc_size - stack_size);
-	printf("[0x%x, 0x%x, 0x%x, 0x%x]\n",*(code-4),*(code-3),*(code-2),*(code-1));
+	if (cfg->verbose_level > 2)
+		g_print("[0x%x, 0x%x, 0x%x, 0x%x]\n",*(code-4),*(code-3),*(code-2),*(code-1));
 	
 	// set new a0(fp) value
 	riscv_addi(code,RISCV_FP,RISCV_SP,alloc_size);
-	printf("[0x%x, 0x%x, 0x%x, 0x%x]\n",*(code-4),*(code-3),*(code-2),*(code-1));
+	if (cfg->verbose_level > 2)
+		g_print("[0x%x, 0x%x, 0x%x, 0x%x]\n",*(code-4),*(code-3),*(code-2),*(code-1));
 
 	// save other registers
 	// TODO
