@@ -464,6 +464,11 @@ mono_arch_create_vars (MonoCompile *cfg)
 	// MonoMethodSignature *sig;
 
 	// sig = mono_method_signature_internal (cfg->method);
+
+	if (cfg->method->save_lmf) {
+		cfg->lmf_ir = TRUE;
+		cfg->create_lmf_var = TRUE;
+	}
 }
 
 MonoInst *
@@ -926,10 +931,77 @@ mono_riscv_emit_store (guint8 *code, int rs1, int rs2, gint32 imm)
 	return code;
 }
 
+/*
+ * Stack frame layout:
+ *  |--------------------------| -- <-- sp + stack_size (FP)
+ *  | saved return value	   |
+ *  |--------------------------| 
+ * 	| saved FP reg			   |
+ *  |--------------------------| 
+ *  | param area			   |
+ *  |--------------------------|
+ * 	| MonoLMF structure		   |
+ *  |--------------------------|
+ *  | realignment			   |
+ *  |--------------------------| -- <-- sp
+ */
 guint8 *
 mono_arch_emit_prolog (MonoCompile *cfg)
 {
-	NOT_IMPLEMENTED;
+	MonoMethod *method = cfg->method;
+	MonoMethodSignature *sig;
+	MonoInst *inst;
+	guint8 *code;
+	guint32 iregs_to_save = 0;
+	int alloc_size;
+	int cfa_offset;
+
+	/* lmf_offset is the offset of the LMF from our stack pointer. */
+	// guint32 lmf_offset = cfg->arch.lmf_offset;
+
+	cfg->code_size = MAX (cfg->header->code_size * 4, 1024);;
+	code = (unsigned char*)g_malloc (cfg->code_size);
+	cfg->native_code = code;
+
+	/* realigned */
+	cfg->stack_offset = ALIGN_TO (cfg->stack_offset, MONO_ARCH_FRAME_ALIGNMENT);
+	
+
+	/* stack_offset should not be changed here. */
+	alloc_size = cfg->stack_offset;
+	cfg->stack_usage = alloc_size;
+
+	iregs_to_save = (cfg->used_int_regs & MONO_ARCH_CALLEE_SAVED_REGS);
+
+	/* set up frame */
+	cfa_offset = 0;
+	// mono_emit_unwind_op_def_cfa (cfg, code, RISCV_SP, cfa_offset);
+
+	// set up stack pointer
+	int stack_size = 0;
+	riscv_addi(code,RISCV_SP,RISCV_SP,-alloc_size);
+	printf("[0x%x, 0x%x, 0x%x, 0x%x]\n",*(code-4),*(code-3),*(code-2),*(code-1));
+
+	// save return value
+	stack_size += sizeof(target_mgreg_t);
+	code = mono_riscv_emit_store(code, RISCV_RA, RISCV_SP, alloc_size - stack_size);
+	printf("[0x%x, 0x%x, 0x%x, 0x%x]\n",*(code-4),*(code-3),*(code-2),*(code-1));
+
+	// save a0(fp) value
+	stack_size += sizeof(target_mgreg_t);
+	code = mono_riscv_emit_store(code, RISCV_FP, RISCV_SP, alloc_size - stack_size);
+	printf("[0x%x, 0x%x, 0x%x, 0x%x]\n",*(code-4),*(code-3),*(code-2),*(code-1));
+	
+	// set new a0(fp) value
+	riscv_addi(code,RISCV_FP,RISCV_SP,alloc_size);
+	printf("[0x%x, 0x%x, 0x%x, 0x%x]\n",*(code-4),*(code-3),*(code-2),*(code-1));
+
+	// save other registers
+	// TODO
+
+	g_assert(stack_size == alloc_size && "prologue emit error: there are stack not used");
+
+	return code;
 }
 
 void
