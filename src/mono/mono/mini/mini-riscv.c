@@ -812,6 +812,7 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 	}
 
 	cfg->stack_offset = stack_size;
+	cfg->frame_reg = RISCV_FP;
 }
 
 /*
