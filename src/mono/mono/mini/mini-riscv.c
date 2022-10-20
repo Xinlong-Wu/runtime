@@ -1059,7 +1059,36 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 void
 mono_arch_emit_exceptions (MonoCompile *cfg)
 {
-	NOT_IMPLEMENTED;
+	MonoJumpInfo *ji;
+	MonoClass *exc_class;
+	guint8 *code;
+	const guint8* exc_throw_pos [MONO_EXC_INTRINS_NUM] = {NULL};
+	guint8 exc_throw_found [MONO_EXC_INTRINS_NUM] = {0};
+	int exc_id, max_epilog_size;
+
+	for (ji = cfg->patch_info; ji; ji = ji->next) {
+		if (ji->type == MONO_PATCH_INFO_EXC) {
+			exc_id = mini_exception_id_by_name ((const char*)ji->data.target);
+			g_assert (exc_id < MONO_EXC_INTRINS_NUM);
+			if (!exc_throw_found [exc_id]) {
+				g_assert_not_reached();
+				// max_epilog_size += 32; // TODO: how/why it be 32 ??
+				// exc_throw_found [exc_id] = TRUE;
+			}
+		}
+	}
+
+	code = realloc_code (cfg, max_epilog_size);
+
+	/* Emit code to raise corlib exceptions */
+	for (ji = cfg->patch_info; ji; ji = ji->next) {
+		if (ji->type != MONO_PATCH_INFO_EXC)
+			continue;
+
+		g_assert_not_reached();
+	}
+
+	set_code_cursor (cfg, code);
 }
 
 guint32
