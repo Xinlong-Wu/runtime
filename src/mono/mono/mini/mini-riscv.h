@@ -155,6 +155,10 @@
 // #define MONO_ARCH_HAVE_INTERP_PINVOKE_TRAMP (1)
 // #define MONO_ARCH_HAVE_INTERP_NATIVE_TO_MANAGED (1)
 
+#define MONO_ARCH_DUMP_CODE_DEBUG(code, is_output) \
+	if (is_output) \
+		g_print("[0x%x, 0x%x, 0x%x, 0x%x]\n",*(code-4),*(code-3),*(code-2),*(code-1));
+
 typedef struct {
 	CallInfo *cinfo;
 	guint32 saved_iregs;
