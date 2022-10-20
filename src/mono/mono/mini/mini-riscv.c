@@ -980,25 +980,21 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 	// set up stack pointer
 	int stack_size = 0;
 	riscv_addi(code,RISCV_SP,RISCV_SP,-alloc_size);
-	if (cfg->verbose_level > 2)
-		g_print("[0x%x, 0x%x, 0x%x, 0x%x]\n",*(code-4),*(code-3),*(code-2),*(code-1));
+	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 
 	// save return value
 	stack_size += sizeof(target_mgreg_t);
 	code = mono_riscv_emit_store(code, RISCV_RA, RISCV_SP, alloc_size - stack_size);
-	if (cfg->verbose_level > 2)
-		g_print("[0x%x, 0x%x, 0x%x, 0x%x]\n",*(code-4),*(code-3),*(code-2),*(code-1));
+	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 
 	// save a0(fp) value
 	stack_size += sizeof(target_mgreg_t);
 	code = mono_riscv_emit_store(code, RISCV_FP, RISCV_SP, alloc_size - stack_size);
-	if (cfg->verbose_level > 2)
-		g_print("[0x%x, 0x%x, 0x%x, 0x%x]\n",*(code-4),*(code-3),*(code-2),*(code-1));
+	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 	
 	// set new a0(fp) value
 	riscv_addi(code,RISCV_FP,RISCV_SP,alloc_size);
-	if (cfg->verbose_level > 2)
-		g_print("[0x%x, 0x%x, 0x%x, 0x%x]\n",*(code-4),*(code-3),*(code-2),*(code-1));
+	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 
 	// save other registers
 	// TODO
@@ -1008,10 +1004,81 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 	return code;
 }
 
+/*
+ * emit_load_regset:
+ *
+ *   Emit code to load the registers in REGS from consecutive memory locations starting
+ * at BASEREG+OFFSET.
+ */
+static __attribute__ ((__warn_unused_result__)) guint8*
+emit_load_regset (guint8 *code, guint64 used_regs, int basereg, int offset){
+	int i, pos;
+
+	pos = 0;
+	for (i = 0; i < 32; ++i) {
+		if (used_regs & (1 << i)) {
+			g_print("[Emit Epilogue]: Used Reg ID => %d\n", i);
+		}
+	}
+
+	return code;
+}
+
 void
 mono_arch_emit_epilog (MonoCompile *cfg)
 {
-	NOT_IMPLEMENTED;
+	guint8 *code = NULL;
+	CallInfo *cinfo;
+	MonoMethod *method = cfg->method;
+	int i;
+	int max_epilog_size = 16 + 20*4;
+	int alloc2_size = 0;
+
+	code = realloc_code (cfg, max_epilog_size);
+
+	if (cfg->method->save_lmf) {
+		g_assert_not_reached();
+	} else {
+		/* Restore gregs */
+		code = emit_load_regset (code, MONO_ARCH_CALLEE_SAVED_REGS & cfg->used_int_regs, RISCV_SP, cfg->stack_offset);
+	}
+	
+	/* Load returned vtypes into registers if needed */
+	cinfo = cfg->arch.cinfo;
+	switch (cinfo->ret.storage) {
+		case ArgNone:
+			break;
+		default:
+			g_assert_not_reached();
+	}
+
+	/* Destroy frame */
+	// 	Emits:
+	//  ld s0,stack_size - 8(sp) # 8-byte Folded Reload
+	// 		...
+	// 	ld s0, 0(sp) # 8-byte Folded Reload
+	//  addi sp,sp,stack_size
+	
+	g_assert("Check stack align\n" && (cfg->stack_offset == (cfg->stack_offset>>3)<<3));
+	for(int offset = cfg->stack_offset; offset > 16; offset-=8){
+		riscv_ld(code, RISCV_FP, RISCV_SP, offset - 8);
+		MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+	}
+	riscv_ld(code, RISCV_RA, RISCV_SP, 8);
+	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+	riscv_ld(code, RISCV_S0, RISCV_SP, 0);
+	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+	riscv_addi(code, RISCV_SP, RISCV_SP, cfg->stack_offset);
+	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+
+	if(cinfo->ret.storage == ArgNone)
+		riscv_jalr(code, RISCV_X0, RISCV_X1, 0);
+	else
+		g_assert_not_reached();
+	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+
+	g_assert (code - (cfg->native_code + cfg->code_len) < max_epilog_size);
+	set_code_cursor (cfg, code);
 }
 
 void
@@ -1060,11 +1127,11 @@ void
 mono_arch_emit_exceptions (MonoCompile *cfg)
 {
 	MonoJumpInfo *ji;
-	MonoClass *exc_class;
+	// MonoClass *exc_class;
 	guint8 *code;
-	const guint8* exc_throw_pos [MONO_EXC_INTRINS_NUM] = {NULL};
+	// const guint8* exc_throw_pos [MONO_EXC_INTRINS_NUM] = {NULL};
 	guint8 exc_throw_found [MONO_EXC_INTRINS_NUM] = {0};
-	int exc_id, max_epilog_size;
+	int exc_id, max_epilog_size = 32;
 
 	for (ji = cfg->patch_info; ji; ji = ji->next) {
 		if (ji->type == MONO_PATCH_INFO_EXC) {
