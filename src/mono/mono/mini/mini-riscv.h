@@ -194,13 +194,15 @@ typedef struct {
 } CallContext;
 
 typedef enum {
-	ArgInIReg,
-	ArgOnStack,
+	ArgInIReg = 0x00,
+	ArgOnStack = 0x10,
 	// ArgInFReg,
 	ArgStructByVal,
 	ArgStructByAddr,
 	ArgNone // only in void return type
 } ArgStorage;
+
+#define MONO_ARCH_CHECK_IN_REG(storage) !(storage >> 4)
 
 typedef struct {
 	gint32  offset;
