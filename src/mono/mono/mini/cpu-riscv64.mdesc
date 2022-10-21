@@ -26,3 +26,5 @@
 #
 #     a    a0
 #     c    all caller-saved registers
+
+il_seq_point: len:0

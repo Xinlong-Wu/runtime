@@ -740,7 +740,7 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 	// NOT_IMPLEMENTED;
 	switch (ins->opcode){
 		default:{
-			g_print("=== UnImplemented Inst\n");
+			g_print("=== Undecompose Inst ===\n");
 			mono_print_ins(ins);
 		}
 	}
@@ -878,8 +878,21 @@ void
 mono_arch_lowering_pass (MonoCompile *cfg, MonoBasicBlock *bb)
 {
 	MonoInst *ins,*n;
+
+	if (cfg->verbose_level > 2) {
+		int idx = 0;
+
+		g_print ("BASIC BLOCK %d (before lowering)\n", bb->block_num);
+		MONO_BB_FOR_EACH_INS (bb, ins) {
+			mono_print_ins_index (idx++, ins);
+		}
+		
+	}
+
 	MONO_BB_FOR_EACH_INS_SAFE (bb, n, ins){
-		switch (ins->opcode){	
+		switch (ins->opcode){
+			case OP_IL_SEQ_POINT:
+				break;
 			default:
 				printf ("unable to lowering following IR:"); mono_print_ins (ins);
 				NOT_IMPLEMENTED;
@@ -1107,12 +1120,12 @@ mono_arch_emit_epilog (MonoCompile *cfg)
 	
 	g_assert("Check stack align\n" && (cfg->stack_offset == (cfg->stack_offset>>3)<<3));
 	for(int offset = cfg->stack_offset; offset > 16; offset-=8){
-		riscv_ld(code, RISCV_FP, RISCV_SP, offset - 8);
+		mono_riscv_emit_load(code, RISCV_FP, RISCV_SP, offset - 8);
 		MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 	}
-	riscv_ld(code, RISCV_RA, RISCV_SP, 8);
+	mono_riscv_emit_load(code, RISCV_RA, RISCV_SP, 8);
 	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
-	riscv_ld(code, RISCV_S0, RISCV_SP, 0);
+	mono_riscv_emit_load(code, RISCV_S0, RISCV_SP, 0);
 	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 	riscv_addi(code, RISCV_SP, RISCV_SP, cfg->stack_offset);
 	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
@@ -1156,6 +1169,9 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 		g_assert ((ins->dreg >= -1) && (ins->dreg < 32));
 
 		switch (ins->opcode) {
+			case OP_IL_SEQ_POINT:
+				mono_add_seq_point (cfg, bb, ins, code - cfg->native_code);
+				break;
 			default:
 				printf ("unable to lowering following IR:"); mono_print_ins (ins);
 				NOT_IMPLEMENTED;
