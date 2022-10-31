@@ -816,7 +816,7 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 			ins->opcode = OP_REGOFFSET;
 			ins->inst_basereg = cfg->frame_reg;
 			ins->inst_offset = - (stack_size + stack_alloc_res [i]);
-			printf ("allocated local %d to ", i); mono_print_ins (ins);
+			printf ("allocated local %d to %d; ", i, ins->inst_offset); mono_print_ins (ins);
 		}
 	}
 	stack_size += locals_stack_size;
@@ -853,11 +853,9 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 				ins->inst_basereg = cfg->frame_reg;
 				/* These arguments are saved to the stack in the prolog */
 				stack_size = ALIGN_TO (stack_size, sizeof (target_mgreg_t));
-
 				stack_size += sizeof (target_mgreg_t);
-				ins->inst_offset = - stack_size;
-
-				printf ("allocated arguments %d to ", i); mono_print_ins (ins);
+				ins->inst_offset = -stack_size;
+				printf ("allocated local %d to %d; ", i, ins->inst_offset); mono_print_ins (ins);
 			}
 
 		}
