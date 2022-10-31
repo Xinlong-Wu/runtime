@@ -526,6 +526,7 @@ get_call_info(MonoMemPool *mp, MonoMethodSignature *sig){
 			break;
 		case MONO_TYPE_I:
 			cinfo->ret.storage = ArgInIReg;
+			cinfo->ret.reg = RISCV_RA;
 			break;
 		
 		default:
@@ -721,17 +722,15 @@ mono_arch_emit_setret (MonoCompile *cfg, MonoMethod *method, MonoInst *val)
 		cfg->arch.cinfo = get_call_info (cfg->mempool, sig);
 	cinfo = cfg->arch.cinfo;
 
-	switch (cinfo->ret.storage) {
+	switch (cinfo->ret.storage){
 		case ArgNone:
 			break;
 		case ArgInIReg:
 			MONO_EMIT_NEW_UNALU (cfg, OP_MOVE, cfg->ret->dreg, val->dreg);
 			break;
-
 		default:
-			g_assert_not_reached();
+			NOT_IMPLEMENTED;
 	}
-
 }
 
 void
@@ -786,20 +785,20 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 			stack_size += sizeof (target_mgreg_t);
 		}
 	}
-
-	/* Return value */
-	switch (cinfo->ret.storage) {
-		case ArgNone:
-			break;
-		case ArgInIReg:
-			cfg->ret->opcode = OP_REGVAR;
-			cfg->ret->dreg = RISCV_RA;
-			break;
-		
-		default:
-			g_error ("Can't handle as return storage id: %d", cinfo->ret.storage);
-			NOT_IMPLEMENTED;
-			break;
+	if (sig->ret->type != MONO_TYPE_VOID) {
+		switch (cinfo->ret.storage){
+			case ArgNone:
+				break;
+			case ArgInIReg:
+				cfg->ret->opcode = OP_REGVAR;
+				cfg->ret->inst_c0 = cinfo->ret.reg;
+				cfg->ret->dreg = cinfo->ret.reg;
+				break;
+			default:
+				g_print("Can't handle storage type %d\n",cinfo->ret.storage);
+				NOT_IMPLEMENTED;
+				break;
+		}
 	}
 
 	/* Allocate locals */
