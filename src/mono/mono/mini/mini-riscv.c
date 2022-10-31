@@ -737,12 +737,11 @@ mono_arch_emit_setret (MonoCompile *cfg, MonoMethod *method, MonoInst *val)
 void
 mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 {
-	// NOT_IMPLEMENTED;
-	switch (ins->opcode){
-		default:{
-			g_print("=== Undecompose Inst ===\n");
-			mono_print_ins(ins);
-		}
+	switch (ins->opcode) {
+		case OP_LADD_IMM:
+			break;
+		default:
+			NOT_IMPLEMENTED;
 	}
 }
 
