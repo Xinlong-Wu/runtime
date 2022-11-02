@@ -864,6 +864,12 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 	cfg->stack_offset = stack_size;
 }
 
+#define NEW_INS(cfg,ins,dest,op) do {	\
+		MONO_INST_NEW ((cfg), (dest), (op)); \
+		(dest)->cil_code = (ins)->cil_code; \
+		mono_bblock_insert_before_ins (bb, ins, (dest)); \
+	} while (0)
+
 /*
  * mono_arch_lowering_pass:
  *
@@ -885,9 +891,20 @@ mono_arch_lowering_pass (MonoCompile *cfg, MonoBasicBlock *bb)
 		
 	}
 
+	MonoInst *ins,*n, *temp;
 	MONO_BB_FOR_EACH_INS_SAFE (bb, n, ins){
 		switch (ins->opcode){
 			case OP_IL_SEQ_POINT:
+				break;	
+			// Inst S{B|H|W|D} use I-type Imm
+			case OP_STORE_MEMBASE_IMM:
+				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_imm))){
+					NEW_INS (cfg, ins, temp, OP_ICONST);
+					temp->inst_c0 = ins->inst_imm;
+					temp->dreg = mono_alloc_ireg (cfg);
+					ins->sreg1 = temp->dreg;
+					ins->opcode = OP_STORE_MEMBASE_REG;
+				}
 				break;
 			default:
 				printf ("unable to lowering following IR:"); mono_print_ins (ins);
