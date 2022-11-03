@@ -879,8 +879,7 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 void
 mono_arch_lowering_pass (MonoCompile *cfg, MonoBasicBlock *bb)
 {
-	MonoInst *ins,*n;
-
+	MonoInst *ins,*n, *temp;
 	if (cfg->verbose_level > 2) {
 		int idx = 0;
 
@@ -891,7 +890,6 @@ mono_arch_lowering_pass (MonoCompile *cfg, MonoBasicBlock *bb)
 		
 	}
 
-	MonoInst *ins,*n, *temp;
 	MONO_BB_FOR_EACH_INS_SAFE (bb, n, ins){
 		switch (ins->opcode){
 			case OP_IL_SEQ_POINT:
