@@ -897,13 +897,14 @@ mono_arch_lowering_pass (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_IL_SEQ_POINT:
 				break;	
 			// Inst S{B|H|W|D} use I-type Imm
+			// Inst L{B|H|W|D} use I-type Imm
 			case OP_STORE_MEMBASE_IMM:
+			case OP_LOAD_MEMBASE:
 				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_imm))){
 					NEW_INS (cfg, ins, temp, OP_ICONST);
 					temp->inst_c0 = ins->inst_imm;
 					temp->dreg = mono_alloc_ireg (cfg);
 					ins->sreg1 = temp->dreg;
-					ins->opcode = OP_STORE_MEMBASE_REG;
 				}
 				break;
 			default:
