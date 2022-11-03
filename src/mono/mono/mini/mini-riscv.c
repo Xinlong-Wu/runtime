@@ -895,11 +895,15 @@ mono_arch_lowering_pass (MonoCompile *cfg, MonoBasicBlock *bb)
 	MONO_BB_FOR_EACH_INS_SAFE (bb, n, ins){
 		switch (ins->opcode){
 			case OP_IL_SEQ_POINT:
+			case OP_MOVE:
+			case OP_VOIDCALL_REG:
 				break;	
 			// Inst S{B|H|W|D} use I-type Imm
-			// Inst L{B|H|W|D} use I-type Imm
 			case OP_STORE_MEMBASE_IMM:
+			// Inst L{B|H|W|D} use I-type Imm
 			case OP_LOAD_MEMBASE:
+			// Inst ADDI use I-type Imm
+			case OP_ADD_IMM:
 				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_imm))){
 					NEW_INS (cfg, ins, temp, OP_ICONST);
 					temp->inst_c0 = ins->inst_imm;
