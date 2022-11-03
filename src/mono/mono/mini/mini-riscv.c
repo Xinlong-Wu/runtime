@@ -893,7 +893,6 @@ mono_arch_lowering_pass (MonoCompile *cfg, MonoBasicBlock *bb)
 	MONO_BB_FOR_EACH_INS_SAFE (bb, n, ins){
 		switch (ins->opcode){
 			case OP_IL_SEQ_POINT:
-			case OP_MOVE:
 			case OP_VOIDCALL_REG:
 				break;	
 			// Inst S{B|H|W|D} use I-type Imm
@@ -908,6 +907,11 @@ mono_arch_lowering_pass (MonoCompile *cfg, MonoBasicBlock *bb)
 					temp->dreg = mono_alloc_ireg (cfg);
 					ins->sreg1 = temp->dreg;
 				}
+				break;
+			case OP_MOVE:
+				// mv ra, a1 -> addi ra, a1, 0
+				ins->opcode = OP_ADD_IMM;
+				ins->inst_imm = 0;
 				break;
 			default:
 				printf ("unable to lowering following IR:"); mono_print_ins (ins);
