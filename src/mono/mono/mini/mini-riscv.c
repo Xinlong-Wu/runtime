@@ -893,7 +893,11 @@ mono_arch_lowering_pass (MonoCompile *cfg, MonoBasicBlock *bb)
 	MONO_BB_FOR_EACH_INS_SAFE (bb, n, ins){
 		switch (ins->opcode){
 			case OP_IL_SEQ_POINT:
+				break;
 			case OP_VOIDCALL_REG:
+				// use JALR x1, 0(src1)
+				ins->inst_imm = 0;
+				ins->dreg = RISCV_X1;
 				break;	
 			// Inst S{B|H|W|D} use I-type Imm
 			case OP_STORE_MEMBASE_IMM:
