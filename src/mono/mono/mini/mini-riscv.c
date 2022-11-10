@@ -1074,15 +1074,15 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 	stack_size += sizeof(target_mgreg_t);
 	code = mono_riscv_emit_store(code, RISCV_FP, RISCV_SP, alloc_size - stack_size);
 	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
-	
-	// set new a0(fp) value
-	riscv_addi(code,RISCV_FP,RISCV_SP,alloc_size);
-	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 
 	// save other registers
 	// TODO
 
-	g_assert(stack_size == alloc_size && "prologue emit error: there are stack not used");
+	// g_assert(stack_size == alloc_size && "prologue emit error: there are stack not used");
+
+	// set new a0(fp) value
+	riscv_addi(code,RISCV_FP,RISCV_SP,alloc_size);
+	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 
 	return code;
 }
