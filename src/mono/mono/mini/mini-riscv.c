@@ -1031,7 +1031,7 @@ mono_riscv_emit_load (guint8 *code, int rd, int rs1, gint32 imm)
 
 // May clobber t1. Uses at most 16 bytes on RV32I and 24 bytes on RV64I.
 guint8 *
-mono_riscv_emit_store (guint8 *code, int rs1, int rs2, gint32 imm)
+mono_riscv_emit_store (guint8 *code, int rs2, int rs1, gint32 imm)
 {
 	if (RISCV_VALID_S_IMM (imm)) {
 #ifdef TARGET_RISCV64
@@ -1237,12 +1237,13 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_IL_SEQ_POINT:
 				mono_add_seq_point (cfg, bb, ins, code - cfg->native_code);
 				break;
-			// case OP_STORE_MEMBASE_IMM:
-			// 	code = mono_riscv_emit_store(code, ins->inst_destbasereg, ins->sreg1, ins->inst_imm);
-			// 	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
-			// 	break;
+			case OP_STORE_MEMBASE_REG:
+				code = mono_riscv_emit_store(code, ins->sreg1, ins->inst_destbasereg, ins->inst_imm);
+				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+				break;
 			case OP_ICONST:
-				mono_riscv_emit_imm(code, ins->dreg, ins->inst_c0);
+				code = mono_riscv_emit_imm(code, ins->dreg, ins->inst_c0);
+				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
 			default:
 				printf ("unable to output following IR:"); mono_print_ins (ins);
