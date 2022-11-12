@@ -973,6 +973,16 @@ mono_riscv_emit_imm (guint8 *code, int rd, gsize imm)
 		return code;
 	}
 
+	/**
+	 * use LUI & ADDIW load 32 bit Imm
+	 * LUI: High 20 bit of imm
+	 * ADDIW: Low 12 bit of imm
+	*/
+	if (RISCV_VALID_IMM (imm)){
+		riscv_lui(code, rd, imm & 0xfffff000);
+		riscv_addiw(code, rd, rd, imm & 0xfff);
+	}
+
 	/*
 	 * This is not pretty, but RV64I doesn't make it easy to load constants.
 	 * Need to figure out something better.
