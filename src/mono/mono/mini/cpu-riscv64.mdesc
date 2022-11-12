@@ -31,8 +31,9 @@ il_seq_point: len:0
 
 voidcall_reg: src1:i len:32 clob:c
 
-store_membase_imm: dest:b len:32
+store_membase_reg: dest:b src1:i len:32
 
 load_membase: dest:i src1:b len:32
 
+iconst: dest:i len:32
 add_imm: dest:i src1:i len:32
