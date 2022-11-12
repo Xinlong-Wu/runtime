@@ -885,12 +885,13 @@ mono_arch_lowering_pass (MonoCompile *cfg, MonoBasicBlock *bb)
 
 		g_print ("BASIC BLOCK %d (before lowering)\n", bb->block_num);
 		MONO_BB_FOR_EACH_INS (bb, ins) {
-			mono_print_ins_index (idx++, ins);
+			mono_print_ins (ins);
 		}
 		
 	}
 
 	MONO_BB_FOR_EACH_INS_SAFE (bb, n, ins){
+loop_start:
 		switch (ins->opcode){
 			case OP_IL_SEQ_POINT:
 				break;
@@ -899,15 +900,32 @@ mono_arch_lowering_pass (MonoCompile *cfg, MonoBasicBlock *bb)
 				ins->inst_imm = 0;
 				ins->dreg = RISCV_X1;
 				break;	
+			// RISC-V dosn't support store Imm to Memory directly
+			// store Imm into Reg firstly.
+			case OP_STORE_MEMBASE_IMM:{
+				// generate a new Inst to store the Imm to the Reg
+				NEW_INS (cfg, ins, temp, OP_ICONST);
+				temp->inst_c0 = ins->inst_imm;
+				temp->dreg = mono_alloc_ireg (cfg);
+				ins->sreg1 = temp->dreg;
+				
+				ins->opcode = OP_STORE_MEMBASE_REG;
+				goto loop_start; /* make it handle the possibly big ins->inst_offset */
+			}
 			// Inst S{B|H|W|D} use I-type Imm
-			case OP_STORE_MEMBASE_IMM:
+			case OP_STORE_MEMBASE_REG:{
+				// check if offset is valid I-type Imm
+				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_offset)))
+					NOT_IMPLEMENTED;
+				break;
+			}
 			// Inst L{B|H|W|D} use I-type Imm
 			case OP_LOAD_MEMBASE:
 			// Inst ADDI use I-type Imm
 			case OP_ADD_IMM:
 				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_imm))){
 					NEW_INS (cfg, ins, temp, OP_ICONST);
-					temp->inst_c0 = ins->inst_imm;
+					temp->inst_c0 = ins->inst_imm & 0xFFFFF000;
 					temp->dreg = mono_alloc_ireg (cfg);
 					ins->sreg1 = temp->dreg;
 				}
@@ -922,6 +940,16 @@ mono_arch_lowering_pass (MonoCompile *cfg, MonoBasicBlock *bb)
 				NOT_IMPLEMENTED;
 				break;
 		}
+	}
+
+	if (cfg->verbose_level > 2) {
+		int idx = 0;
+
+		g_print ("BASIC BLOCK %d (after lowering)\n", bb->block_num);
+		MONO_BB_FOR_EACH_INS (bb, ins) {
+			mono_print_ins (ins);
+		}
+		
 	}
 }
 
@@ -1177,6 +1205,9 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 	start_offset = code - cfg->native_code;
 	g_assert (start_offset <= cfg->code_size);
 
+	if (cfg->verbose_level > 2)
+		g_print ("Basic block %d starting at offset 0x%x\n", bb->block_num, bb->native_offset);
+
 	MONO_BB_FOR_EACH_INS (bb, ins) {
 		guint offset = code - cfg->native_code;
 		set_code_cursor (cfg, code);
@@ -1196,8 +1227,15 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_IL_SEQ_POINT:
 				mono_add_seq_point (cfg, bb, ins, code - cfg->native_code);
 				break;
+			// case OP_STORE_MEMBASE_IMM:
+			// 	code = mono_riscv_emit_store(code, ins->inst_destbasereg, ins->sreg1, ins->inst_imm);
+			// 	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+			// 	break;
+			case OP_ICONST:
+				mono_riscv_emit_imm(code, ins->dreg, ins->inst_c0);
+				break;
 			default:
-				printf ("unable to lowering following IR:"); mono_print_ins (ins);
+				printf ("unable to output following IR:"); mono_print_ins (ins);
 				NOT_IMPLEMENTED;
 				break;
 		}
