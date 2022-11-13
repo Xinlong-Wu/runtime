@@ -925,7 +925,7 @@ loop_start:
 			case OP_ADD_IMM:
 				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_imm))){
 					NEW_INS (cfg, ins, temp, OP_ICONST);
-					temp->inst_c0 = ins->inst_imm & 0xFFFFF000;
+					temp->inst_c0 = (ins->inst_imm >> 12) << 12;
 					temp->dreg = mono_alloc_ireg (cfg);
 					ins->sreg1 = temp->dreg;
 				}
@@ -1237,6 +1237,8 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_IL_SEQ_POINT:
 				mono_add_seq_point (cfg, bb, ins, code - cfg->native_code);
 				break;
+			case OP_LOAD_MEMBASE: 
+				code = mono_riscv_emit_load(code, ins->dreg, ins->sreg1, ins->inst_offset);
 			case OP_STORE_MEMBASE_REG:
 				code = mono_riscv_emit_store(code, ins->sreg1, ins->inst_destbasereg, ins->inst_imm);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
