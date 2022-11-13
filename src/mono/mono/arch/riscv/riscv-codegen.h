@@ -294,7 +294,7 @@ enum {
 
 // Check a value for validity as an immediate.
 #define RISCV_VALID_IMM(value) \
-	((value) & 0xffffffff == (value))
+	((RISCV_BITS((value), 0, 32) << 32 ) >> 32 == (value))
 #define RISCV_VALID_I_IMM(value) \
 	(RISCV_DECODE_I_IMM (RISCV_ENCODE_I_IMM ((value))) == (value))
 #define RISCV_VALID_S_IMM(value) \
