@@ -907,9 +907,9 @@ loop_start:
 				NEW_INS (cfg, ins, temp, OP_ICONST);
 				temp->inst_c0 = ins->inst_imm;
 				temp->dreg = mono_alloc_ireg (cfg);
-				ins->sreg1 = temp->dreg;
 				
 				ins->opcode = OP_STORE_MEMBASE_REG;
+				ins->sreg1 = temp->dreg;
 				goto loop_start; /* make it handle the possibly big ins->inst_offset */
 			}
 			// Inst S{B|H|W|D} use I-type Imm
@@ -1035,17 +1035,17 @@ mono_riscv_emit_store (guint8 *code, int rs2, int rs1, gint32 imm)
 {
 	if (RISCV_VALID_S_IMM (imm)) {
 #ifdef TARGET_RISCV64
-		riscv_sd (code, rs1, rs2, imm);
+		riscv_sd (code, rs2, rs1, imm);
 #else
-		riscv_sw (code, rs1, rs2, imm);
+		riscv_sw (code, rs2, rs1, imm);
 #endif
 	} else {
 		code = mono_riscv_emit_imm (code, RISCV_T1, imm);
-		riscv_add (code, RISCV_T1, rs2, RISCV_T1);
+		riscv_add (code, RISCV_T1, rs1, RISCV_T1);
 #ifdef TARGET_RISCV64
-		riscv_sd (code, rs1, RISCV_T1, 0);
+		riscv_sd (code, rs2, RISCV_T1, 0);
 #else
-		riscv_sw (code, rs1, RISCV_T1, 0);
+		riscv_sw (code, rs2, RISCV_T1, 0);
 #endif
 	}
 
@@ -1240,7 +1240,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_LOAD_MEMBASE: 
 				code = mono_riscv_emit_load(code, ins->dreg, ins->sreg1, ins->inst_offset);
 			case OP_STORE_MEMBASE_REG:
-				code = mono_riscv_emit_store(code, ins->sreg1, ins->inst_destbasereg, ins->inst_imm);
+				code = mono_riscv_emit_store(code, ins->sreg1, ins->dreg, ins->inst_offset);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
 			case OP_ICONST:
