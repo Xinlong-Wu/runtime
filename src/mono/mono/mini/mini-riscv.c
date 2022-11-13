@@ -1239,6 +1239,8 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				break;
 			case OP_LOAD_MEMBASE: 
 				code = mono_riscv_emit_load(code, ins->dreg, ins->sreg1, ins->inst_offset);
+				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+				break;
 			case OP_STORE_MEMBASE_REG:
 				code = mono_riscv_emit_store(code, ins->sreg1, ins->dreg, ins->inst_offset);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
