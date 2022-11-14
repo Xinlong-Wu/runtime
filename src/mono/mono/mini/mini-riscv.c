@@ -543,12 +543,13 @@ get_call_info(MonoMemPool *mp, MonoMethodSignature *sig){
 	// TODO: only consider void return type for now, so skip the return reg.
 	guint32 paramStart = 0;
 	ArgStorage ret_storage = cinfo->ret.storage;
-	if(ret_type->type != ArgNone){
+	if(ret_storage != ArgNone){
 		paramStart = 1;
 	}
 
 	// TODO: process if function call has variable parameter
 	if (!sig->pinvoke && (sig->call_convention == MONO_CALL_VARARG) && (nextArgReg == RISCV_A0)) {
+		NOT_IMPLEMENTED;
 	}
 
 	// process other general Arguments
