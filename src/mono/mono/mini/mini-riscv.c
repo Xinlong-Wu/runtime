@@ -530,7 +530,8 @@ get_call_info(MonoMemPool *mp, MonoMethodSignature *sig){
 			break;
 		
 		default:
-			g_error ("Can't handle as return value 0x%x", ret_type->type);
+			g_print ("Can't handle as return value 0x%x\n", ret_type->type);
+			g_assert_not_reached();
 			break;
 	}
 
@@ -596,7 +597,8 @@ get_call_info(MonoMemPool *mp, MonoMethodSignature *sig){
 				break;
 			
 			default:
-				g_error("Can't handle parameter with type value 0x%x", ret_type->type);
+				g_print("Can't handle parameter with type value 0x%x\n", ptype->type);
+				g_assert_not_reached();
 				break;
 		}
 	}
@@ -941,6 +943,7 @@ mono_arch_lowering_pass (MonoCompile *cfg, MonoBasicBlock *bb)
 loop_start:
 		switch (ins->opcode){
 			case OP_IL_SEQ_POINT:
+			case OP_VOIDCALL:
 				break;
 			case OP_VOIDCALL_REG:
 				// use JALR x1, 0(src1)
