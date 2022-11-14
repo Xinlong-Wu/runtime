@@ -1226,9 +1226,11 @@ mono_arch_emit_epilog (MonoCompile *cfg)
 	cinfo = cfg->arch.cinfo;
 	switch (cinfo->ret.storage) {
 		case ArgNone:
+		case ArgInIReg:
 			break;
 		default:
-			g_assert_not_reached();
+			g_print("Unable process returned storage %d(0x%x)\n",cinfo->ret.storage,cinfo->ret.storage);
+			NOT_IMPLEMENTED;
 	}
 
 	/* Destroy frame */
@@ -1250,8 +1252,8 @@ mono_arch_emit_epilog (MonoCompile *cfg)
 	riscv_addi(code, RISCV_SP, RISCV_SP, cfg->stack_offset);
 	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 
-	if(cinfo->ret.storage == ArgNone)
-		riscv_jalr(code, RISCV_X0, RISCV_X1, 0);
+	if(cinfo->ret.storage == ArgNone || cinfo->ret.storage == ArgInIReg)
+		riscv_jalr(code, RISCV_X0, RISCV_RA, 0);
 	else
 		g_assert_not_reached();
 	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
