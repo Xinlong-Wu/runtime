@@ -1100,6 +1100,16 @@ mono_riscv_emit_store (guint8 *code, int rs2, int rs1, gint32 imm)
 	return code;
 }
 
+guint8 *
+mono_riscv_emit_call (MonoCompile *cfg, guint8* code, MonoJumpInfoType patch_type, gconstpointer data){
+
+	mono_add_patch_info_rel (cfg, code - cfg->native_code, patch_type, data, MONO_R_RISCV_CALL);
+	// only used as a placeholder
+	riscv_jal(code, RISCV_RA, 0);
+	cfg->thunk_area = 0;
+	return code;
+}
+
 /*
  * Stack frame layout:
  *  |--------------------------| -- <-- sp + stack_size (FP)
@@ -1299,6 +1309,13 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				break;
 			case OP_ADD_IMM:
 				riscv_addi(code, ins->dreg, ins->sreg1, ins->inst_imm);
+				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+				break;
+			case OP_VOIDCALL:
+				call = (MonoCallInst*)ins;
+				// mono_call_add_patch_info (cfg, call, code - cfg->native_code);
+				const MonoJumpInfoTarget patch = mono_call_to_patch (call);
+				code = mono_riscv_emit_call (cfg, code, patch.type, patch.target);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
 			default:
