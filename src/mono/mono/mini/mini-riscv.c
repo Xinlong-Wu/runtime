@@ -1061,8 +1061,8 @@ mono_riscv_emit_imm (guint8 *code, int rd, gsize imm)
 	 * ADDIW: Low 12 bit of imm
 	*/
 	if (RISCV_VALID_IMM (imm)){
-		riscv_lui(code, rd, RISCV_DECODE_U_IMM(imm));
-		riscv_addiw(code, rd, rd, RISCV_DECODE_I_IMM(imm));
+		riscv_lui(code, rd, imm & 0xfffff000);
+		riscv_addiw(code, rd, rd, imm & 0xfff);
 	}
 
 	/*
