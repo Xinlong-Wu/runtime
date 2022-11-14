@@ -315,11 +315,42 @@ mono_arch_get_argument_info (MonoMethodSignature *csig, int param_count,
     return 0;
 }
 
+static void
+riscv_patch_full (MonoCompile *cfg, MonoDomain *domain, guint8 *code, guint8 *target, int relocation){
+	switch (relocation){
+		case MONO_R_RISCV_JAL:
+			target = MINI_FTNPTR_TO_ADDR (target);
+			if(!riscv_is_jal_disp(code,target))
+				NOT_IMPLEMENTED;
+			
+			riscv_jal(code, RISCV_RA, (gint32)target & 0xffffe);
+			g_print("jar ra, 0x%x <0x%lx> ", (gint32)target & 0xffffe, (gint32)target);
+			MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+			break;
+		default:
+			NOT_IMPLEMENTED;
+	}
+}
+
 void
 mono_arch_patch_code_new (MonoCompile *cfg, guint8 *code,
                           MonoJumpInfo *ji, gpointer target)
 {
-	NOT_IMPLEMENTED;
+	guint8 *ip;
+
+	ip = ji->ip.i + code;
+	switch (ji->type){
+		case MONO_PATCH_INFO_METHOD_JUMP:
+			/* ji->relocation is not set by the caller */
+			riscv_patch_full (cfg, domain, ip, (guint8*)target, MONO_R_RISCV_JAL);
+			mono_arch_flush_icache (ip, 8);
+			break;
+		case MONO_PATCH_INFO_NONE:
+			break;
+		default:
+			riscv_patch_full (cfg, domain, ip, (guint8*)target, ji->relocation);
+			break;
+	}
 }
 
 /* Set arguments in the ccontext (for i2n entry) */
@@ -1106,7 +1137,7 @@ mono_riscv_emit_store (guint8 *code, int rs2, int rs1, gint32 imm)
 guint8 *
 mono_riscv_emit_call (MonoCompile *cfg, guint8* code, MonoJumpInfoType patch_type, gconstpointer data){
 
-	mono_add_patch_info_rel (cfg, code - cfg->native_code, patch_type, data, MONO_R_RISCV_CALL);
+	mono_add_patch_info_rel (cfg, code - cfg->native_code, patch_type, data, MONO_R_RISCV_JAL);
 	// only used as a placeholder
 	riscv_jal(code, RISCV_RA, 0);
 	cfg->thunk_area = 0;
