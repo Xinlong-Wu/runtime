@@ -1318,6 +1318,10 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				code = mono_riscv_emit_call (cfg, code, patch.type, patch.target);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
+			case OP_VOIDCALL_REG:
+				riscv_jalr(code, RISCV_RA, ins->sreg1, ins->inst_imm);
+				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+				break;
 			default:
 				printf ("unable to output following IR:"); mono_print_ins (ins);
 				NOT_IMPLEMENTED;
