@@ -623,6 +623,39 @@ add_outarg_reg (MonoCompile *cfg, MonoCallInst *call, ArgStorage storage, int re
 	}
 }
 
+/* 
+ * take the arguments and generate the arch-specific
+ * instructions to properly call the function in call.
+ * This includes pushing, moving arguments to the right register
+ * etc.
+ */
+static void
+emit_sig_cookie (MonoCompile *cfg, MonoCallInst *call, CallInfo *cinfo){
+	MonoMethodSignature *tmp_sig;
+	MonoInst *sig_arg;
+
+	if (MONO_IS_TAILCALL_OPCODE (call))
+		NOT_IMPLEMENTED;
+
+	/*
+	 * mono_ArgIterator_Setup assumes the signature cookie is 
+	 * passed first and all the arguments which were before it are
+	 * passed on the stack after the signature. So compensate by 
+	 * passing a different signature.
+	 */
+	tmp_sig = mono_metadata_signature_dup (call->signature);
+	tmp_sig->param_count -= call->signature->sentinelpos;
+	tmp_sig->sentinelpos = 0;
+	memcpy (tmp_sig->params, call->signature->params + call->signature->sentinelpos, tmp_sig->param_count * sizeof (MonoType*));
+
+	MONO_INST_NEW (cfg, sig_arg, OP_ICONST);
+	sig_arg->dreg = mono_alloc_ireg (cfg);
+	sig_arg->inst_p0 = tmp_sig;
+	MONO_ADD_INS (cfg->cbb, sig_arg);
+
+	MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STORE_MEMBASE_REG, RISCV_SP, cinfo->sig_cookie.offset, sig_arg->dreg);
+}
+
 /**
  * mono_arch_emit_call:
  * 	we process all Args of a function call
@@ -642,52 +675,6 @@ mono_arch_emit_call (MonoCompile *cfg, MonoCallInst *call)
 
 	cinfo = get_call_info (cfg->mempool, sig);
 
-	if (COMPILE_LLVM (cfg)) {
-		/* We shouldn't be called in the llvm case */
-		cfg->disable_llvm = TRUE;
-		return;
-	}
-
-	/* 
-	 * Emit all arguments which are passed on the stack to prevent register
-	 * allocation problems.
-	 */
-	// TODO
-	int i;
-	for (i = 0; i < paramNum; i++)
-	{
-		ArgInfo *ainfo = cinfo->args + i;
-		MonoType *t;
-
-		if (sig->hasthis && i == 0)
-			t = mono_get_object_type ();
-		else
-			t = sig->params [i - sig->hasthis];
-
-		t = mini_get_underlying_type (t);
-		if (ainfo->storage == ArgOnStack){
-			NOT_IMPLEMENTED;
-		}
-	}
-	
-
-	/*
-	 * Emit all parameters passed in registers in non-reverse order for better readability
-	 * and to help the optimization in emit_prolog ().
-	 */
-	// TODO
-	for (i = 0; i < paramNum; ++i) {
-		ArgInfo *ainfo = cinfo->args + i;
-
-		in = call->args [i];
-
-		if (ainfo->storage == ArgInIReg)
-			add_outarg_reg (cfg, call, ainfo->storage, ainfo->reg, in);
-	}
-
-	/* Handle the case where there are no implicit arguments */
-	// TODO
-
 	/* Emit the inst of return by return type */
 	switch (cinfo->ret.storage){
 		default:
@@ -696,6 +683,65 @@ mono_arch_emit_call (MonoCompile *cfg, MonoCallInst *call)
 		case ArgNone:
 			break;
 	}
+
+	if (cinfo->struct_ret)
+		// call->used_iregs |= 1 << cinfo->struct_ret;
+		NOT_IMPLEMENTED;
+
+	if (COMPILE_LLVM (cfg)) {
+		/* We shouldn't be called in the llvm case */
+		cfg->disable_llvm = TRUE;
+		return;
+	}
+
+	for (int i = 0; i < paramNum; i++)
+	{
+		ArgInfo *ainfo = cinfo->args + i;
+		MonoType *t;
+
+		if (sig->hasthis && i == 0)
+			t = mono_get_object_type ();
+		else
+			t = sig->params [i - sig->hasthis];
+		t = mini_get_underlying_type (t);
+
+		if ((sig->call_convention == MONO_CALL_VARARG) && (i == sig->sentinelpos)) {
+			/* Emit the signature cookie just before the implicit arguments */
+			emit_sig_cookie (cfg, call, cinfo);
+		}
+
+		if (is_virtual && i == 0) {
+			NOT_IMPLEMENTED;
+		}
+
+		in = call->args [i];
+		switch (ainfo->storage){
+			case ArgInIReg:{
+				if (!t->byref && ((t->type == MONO_TYPE_I8) || (t->type == MONO_TYPE_U8))){
+					NOT_IMPLEMENTED;
+				}
+				else{
+					MONO_INST_NEW (cfg, ins, OP_MOVE);
+					ins->dreg = mono_alloc_ireg (cfg);
+					ins->sreg1 = in->dreg;
+					MONO_ADD_INS (cfg->cbb, ins);
+
+					mono_call_inst_add_outarg_reg (cfg, call, ins->dreg, ainfo->reg, FALSE);
+				}
+				break;
+			}
+			default:
+				g_print("can't process Storage type %d\n",ainfo->storage);
+				NOT_IMPLEMENTED;
+		}
+	}
+	
+	/* Handle the case where there are no implicit arguments */
+	if (!sig->pinvoke && (sig->call_convention == MONO_CALL_VARARG) && (paramNum == sig->sentinelpos))
+		emit_sig_cookie (cfg, call, cinfo);
+
+	call->call_info = cinfo;
+	call->stack_usage = cinfo->stack_usage;
 
 	/* setup LMF */
 	if (cfg->method->save_lmf) {
@@ -934,7 +980,8 @@ loop_start:
 				// mv ra, a1 -> addi ra, a1, 0
 				ins->opcode = OP_ADD_IMM;
 				ins->inst_imm = 0;
-				break;
+
+				goto loop_start;
 			default:
 				printf ("unable to lowering following IR:"); mono_print_ins (ins);
 				NOT_IMPLEMENTED;
