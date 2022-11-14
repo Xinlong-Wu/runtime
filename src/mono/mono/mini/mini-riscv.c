@@ -1061,8 +1061,21 @@ mono_riscv_emit_imm (guint8 *code, int rd, gsize imm)
 	 * ADDIW: Low 12 bit of imm
 	*/
 	if (RISCV_VALID_IMM (imm)){
-		riscv_lui(code, rd, imm & 0xfffff000);
-		riscv_addiw(code, rd, rd, imm & 0xfff);
+		gint32 Hi = RISCV_BITS(imm,12, 20);
+		gint32 Lo = RISCV_BITS(imm,0, 12);
+
+		// Lo is in signed num
+		// if Lo > 0x800
+		// convert into ((Hi + 1) << 20) -  (0x1000 - Lo)
+		if(Lo > 0x800){
+			Hi += 1;
+			Lo = Lo - 0x1000;
+		}
+
+		// if Hi is 0 or overflow, skip
+		if(Hi < 0xfffff)
+			riscv_lui(code, rd, Hi);
+		riscv_addiw(code, rd, rd, Lo);
 	}
 
 	/*
