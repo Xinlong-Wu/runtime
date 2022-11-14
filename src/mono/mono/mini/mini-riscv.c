@@ -1297,6 +1297,10 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				code = mono_riscv_emit_imm(code, ins->dreg, ins->inst_c0);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
+			case OP_ADD_IMM:
+				riscv_addi(code, ins->dreg, ins->sreg1, ins->inst_imm);
+				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+				break;
 			default:
 				printf ("unable to output following IR:"); mono_print_ins (ins);
 				NOT_IMPLEMENTED;
