@@ -1,0 +1,171 @@
+diff --git a/mono/mini/mini-riscv.c b/mono/mini/mini-riscv.c
+index dd5bac4bd25..ef9921e517c 100644
+--- a/mono/mini/mini-riscv.c
++++ b/mono/mini/mini-riscv.c
+@@ -6,6 +6,7 @@
+ #include <mono/utils/mono-hwcap.h>
+ 
+ #include "mini-runtime.h"
++#include "ir-emit.h"
+ 
+ #ifdef TARGET_RISCV64
+ #include "cpu-riscv64.h"
+@@ -517,6 +518,9 @@ get_call_info(MonoMemPool *mp, MonoMethodSignature *sig){
+ 		case MONO_TYPE_VOID:
+ 			cinfo->ret.storage = ArgNone;
+ 			break;
++		case MONO_TYPE_I:
++			cinfo->ret.storage = ArgInIReg;
++			break;
+ 		
+ 		default:
+ 			g_error ("Can't handle as return value 0x%x", ret_type->type);
+@@ -703,13 +707,37 @@ mono_arch_emit_outarg_vt (MonoCompile *cfg, MonoInst *ins, MonoInst *src)
+ void
+ mono_arch_emit_setret (MonoCompile *cfg, MonoMethod *method, MonoInst *val)
+ {
+-	NOT_IMPLEMENTED;
++	MonoMethodSignature *sig;
++	CallInfo *cinfo;
++
++	sig = mono_method_signature_internal (cfg->method);
++	if (!cfg->arch.cinfo)
++		cfg->arch.cinfo = get_call_info (cfg->mempool, sig);
++	cinfo = cfg->arch.cinfo;
++
++	switch (cinfo->ret.storage) {
++		case ArgNone:
++			break;
++		case ArgInIReg:
++			MONO_EMIT_NEW_UNALU (cfg, OP_MOVE, cfg->ret->dreg, val->dreg);
++			break;
++
++		default:
++			g_assert_not_reached();
++	}
++
+ }
+ 
+ void
+ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
+ {
+-	NOT_IMPLEMENTED;
++	// NOT_IMPLEMENTED;
++	switch (ins->opcode){
++		default:{
++			g_print("=== UnImplemented Inst\n");
++			mono_print_ins(ins);
++		}
++	}
+ }
+ 
+ void
+@@ -753,8 +781,20 @@ mono_arch_allocate_vars (MonoCompile *cfg)
+ 			stack_size += sizeof (target_mgreg_t);
+ 		}
+ 	}
+-	if (sig->ret->type != MONO_TYPE_VOID) {
+-		NOT_IMPLEMENTED;
++
++	/* Return value */
++	switch (cinfo->ret.storage) {
++		case ArgNone:
++			break;
++		case ArgInIReg:
++			cfg->ret->opcode = OP_REGVAR;
++			cfg->ret->dreg = RISCV_RA;
++			break;
++		
++		default:
++			g_error ("Can't handle as return storage id: %d", cinfo->ret.storage);
++			NOT_IMPLEMENTED;
++			break;
+ 	}
+ 
+ 	/* Allocate locals */
+@@ -786,7 +826,7 @@ mono_arch_allocate_vars (MonoCompile *cfg)
+ 		MonoInst *ins = cfg->args [i];
+ 		if (ins->opcode != OP_REGVAR) {
+ 			ArgInfo *ainfo = &cinfo->args [i];
+-			gboolean inreg = TRUE;
++			gboolean inreg = MONO_ARCH_CHECK_IN_REG(ainfo->storage);
+ 
+ 			/* FIXME: Allocate volatile arguments to registers */
+ 			if (ins->flags & (MONO_INST_VOLATILE|MONO_INST_INDIRECT))
+@@ -795,11 +835,9 @@ mono_arch_allocate_vars (MonoCompile *cfg)
+ 			ins->opcode = OP_REGOFFSET;
+ 			switch (ainfo->storage) {
+ 				case ArgInIReg:
+-					if (inreg) {
+-						ins->opcode = OP_REGVAR;
+-						ins->dreg = ainfo->reg;
+-					}
+-				break;
++					ins->opcode = OP_REGVAR;
++					ins->dreg = ainfo->reg;
++					break;
+ 				default:
+ 					NOT_IMPLEMENTED;
+ 					break;
+@@ -807,7 +845,15 @@ mono_arch_allocate_vars (MonoCompile *cfg)
+ 
+ 			/* following arguments are saved to the stack in the prolog */
+ 			if (!inreg) {
+-				NOT_IMPLEMENTED;
++				ins->opcode = OP_REGOFFSET;
++				ins->inst_basereg = cfg->frame_reg;
++				/* These arguments are saved to the stack in the prolog */
++				stack_size = ALIGN_TO (stack_size, sizeof (target_mgreg_t));
++
++				stack_size += sizeof (target_mgreg_t);
++				ins->inst_offset = - stack_size;
++
++				printf ("allocated arguments %d to ", i); mono_print_ins (ins);
+ 			}
+ 
+ 		}
+@@ -827,7 +873,7 @@ mono_arch_lowering_pass (MonoCompile *cfg, MonoBasicBlock *bb)
+ {
+ 	MonoInst *ins,*n;
+ 	MONO_BB_FOR_EACH_INS_SAFE (bb, n, ins){
+-		switch (ins->opcode){
++		switch (ins->opcode){	
+ 			default:
+ 				printf ("unable to lowering following IR:"); mono_print_ins (ins);
+ 				NOT_IMPLEMENTED;
+diff --git a/mono/mini/mini-riscv.h b/mono/mini/mini-riscv.h
+index 38d6a4defd3..6611a592848 100644
+--- a/mono/mini/mini-riscv.h
++++ b/mono/mini/mini-riscv.h
+@@ -197,14 +197,16 @@ typedef struct {
+ } CallContext;
+ 
+ typedef enum {
+-	ArgInIReg,
+-	ArgOnStack,
++	ArgInIReg = 0x00,
++	ArgOnStack = 0x10,
+ 	// ArgInFReg,
+ 	ArgStructByVal,
+ 	ArgStructByAddr,
+ 	ArgNone // only in void return type
+ } ArgStorage;
+ 
++#define MONO_ARCH_CHECK_IN_REG(storage) !(storage >> 4)
++
+ typedef struct {
+ 	gint32  offset;
+ 	guint16 vtsize; /* in param area */
+diff --git a/mono/mini/mini.c b/mono/mini/mini.c
+index 173b1ac4508..9431044dd1f 100644
+--- a/mono/mini/mini.c
++++ b/mono/mini/mini.c
+@@ -1985,6 +1985,8 @@ mono_compile_create_vars (MonoCompile *cfg)
+ 
+ 	header = cfg->header;
+ 
++	// cfg->verbose_level = 4;
++
+ 	sig = mono_method_signature_internal (cfg->method);
+ 	
+ 	if (!MONO_TYPE_IS_VOID (sig->ret)) {
