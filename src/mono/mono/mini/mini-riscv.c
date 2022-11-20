@@ -316,7 +316,7 @@ mono_arch_get_argument_info (MonoMethodSignature *csig, int param_count,
 }
 
 static void
-riscv_patch_full (MonoCompile *cfg, MonoDomain *domain, guint8 *code, guint8 *target, int relocation){
+riscv_patch_full (MonoCompile *cfg, guint8 *code, guint8 *target, int relocation){
 	switch (relocation){
 		case MONO_R_RISCV_JAL:
 			target = MINI_FTNPTR_TO_ADDR (target);
@@ -342,13 +342,13 @@ mono_arch_patch_code_new (MonoCompile *cfg, guint8 *code,
 	switch (ji->type){
 		case MONO_PATCH_INFO_METHOD_JUMP:
 			/* ji->relocation is not set by the caller */
-			riscv_patch_full (cfg, domain, ip, (guint8*)target, MONO_R_RISCV_JAL);
+			riscv_patch_full (cfg, ip, (guint8*)target, MONO_R_RISCV_JAL);
 			mono_arch_flush_icache (ip, 8);
 			break;
 		case MONO_PATCH_INFO_NONE:
 			break;
 		default:
-			riscv_patch_full (cfg, domain, ip, (guint8*)target, ji->relocation);
+			riscv_patch_full (cfg, ip, (guint8*)target, ji->relocation);
 			break;
 	}
 }
@@ -751,7 +751,7 @@ mono_arch_emit_call (MonoCompile *cfg, MonoCallInst *call)
 		in = call->args [i];
 		switch (ainfo->storage){
 			case ArgInIReg:{
-				if (!t->byref && ((t->type == MONO_TYPE_I8) || (t->type == MONO_TYPE_U8))){
+				if (!m_type_is_byref(t) && ((t->type == MONO_TYPE_I8) || (t->type == MONO_TYPE_U8))){
 					NOT_IMPLEMENTED;
 				}
 				else{
@@ -961,7 +961,7 @@ mono_arch_lowering_pass (MonoCompile *cfg, MonoBasicBlock *bb)
 {
 	MonoInst *ins,*n, *temp;
 	if (cfg->verbose_level > 2) {
-		int idx = 0;
+		// int idx = 0;
 
 		g_print ("BASIC BLOCK %d (before lowering)\n", bb->block_num);
 		MONO_BB_FOR_EACH_INS (bb, ins) {
@@ -1025,7 +1025,7 @@ loop_start:
 	}
 
 	if (cfg->verbose_level > 2) {
-		int idx = 0;
+		// int idx = 0;
 
 		g_print ("BASIC BLOCK %d (after lowering)\n", bb->block_num);
 		MONO_BB_FOR_EACH_INS (bb, ins) {
@@ -1147,7 +1147,7 @@ mono_riscv_emit_store (guint8 *code, int rs2, int rs1, gint32 imm)
 	return code;
 }
 
-guint8 *
+static guint8 *
 mono_riscv_emit_call (MonoCompile *cfg, guint8* code, MonoJumpInfoType patch_type, gconstpointer data){
 
 	mono_add_patch_info_rel (cfg, code - cfg->native_code, patch_type, data, MONO_R_RISCV_JAL);
@@ -1174,13 +1174,13 @@ mono_riscv_emit_call (MonoCompile *cfg, guint8* code, MonoJumpInfoType patch_typ
 guint8 *
 mono_arch_emit_prolog (MonoCompile *cfg)
 {
-	MonoMethod *method = cfg->method;
-	MonoMethodSignature *sig;
-	MonoInst *inst;
+	// MonoMethod *method = cfg->method;
+	// MonoMethodSignature *sig;
+	// MonoInst *inst;
 	guint8 *code;
-	guint32 iregs_to_save = 0;
+	// guint32 iregs_to_save = 0;
 	int alloc_size;
-	int cfa_offset;
+	// int cfa_offset;
 
 	/* lmf_offset is the offset of the LMF from our stack pointer. */
 	// guint32 lmf_offset = cfg->arch.lmf_offset;
@@ -1197,10 +1197,10 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 	alloc_size = cfg->stack_offset;
 	cfg->stack_usage = alloc_size;
 
-	iregs_to_save = (cfg->used_int_regs & MONO_ARCH_CALLEE_SAVED_REGS);
+	// iregs_to_save = (cfg->used_int_regs & MONO_ARCH_CALLEE_SAVED_REGS);
 
 	/* set up frame */
-	cfa_offset = 0;
+	// cfa_offset = 0;
 	// mono_emit_unwind_op_def_cfa (cfg, code, RISCV_SP, cfa_offset);
 
 	// set up stack pointer
@@ -1238,9 +1238,10 @@ mono_arch_emit_prolog (MonoCompile *cfg)
  */
 static __attribute__ ((__warn_unused_result__)) guint8*
 emit_load_regset (guint8 *code, guint64 used_regs, int basereg, int offset){
-	int i, pos;
+	int i;
+	// int pos;
 
-	pos = 0;
+	// pos = 0;
 	for (i = 0; i < 32; ++i) {
 		if (used_regs & (1 << i)) {
 			g_print("[Emit Epilogue]: Used Reg ID => %d\n", i);
@@ -1255,10 +1256,9 @@ mono_arch_emit_epilog (MonoCompile *cfg)
 {
 	guint8 *code = NULL;
 	CallInfo *cinfo;
-	MonoMethod *method = cfg->method;
-	int i;
+	// MonoMethod *method = cfg->method;
 	int max_epilog_size = 16 + 20*4;
-	int alloc2_size = 0;
+	// int alloc2_size = 0;
 
 	code = realloc_code (cfg, max_epilog_size);
 
@@ -1315,7 +1315,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 	MonoInst *ins;
 	MonoCallInst *call;
 	guint8 *code = cfg->native_code + cfg->code_len;
-	target_mgreg_t imm;
+	// target_mgreg_t imm;
 	int start_offset, max_len;
 	int ins_cnt = 0;
 
