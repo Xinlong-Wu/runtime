@@ -1,5 +1,5 @@
-make -j 30;
-qemu-riscv64 -L /home/wuxinlong/opt/riscv/sysroot/ /home/wuxinlong/workspace/mono/mono/mini/mono $*
+# make -j 30;
+qemu-riscv64-static -L ../.tools/rootfs/riscv64 mono $*
 
 # ./test/run.sh --interp  --compile HelloWorld.Program:Main test/hello.exe
 
