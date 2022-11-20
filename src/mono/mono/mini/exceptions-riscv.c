@@ -210,7 +210,7 @@ mono_arch_unwind_frame (MonoJitTlsData *jit_tls, MonoJitInfo *ji,
 
 		frame->type = FRAME_TYPE_MANAGED_TO_NATIVE;
 
-		ji = mini_jit_info_table_find (domain, (gpointer)(*lmf)->pc, NULL);
+		ji = mini_jit_info_table_find ((gpointer)(*lmf)->pc);
 		if (!ji)
 			return FALSE;
 
