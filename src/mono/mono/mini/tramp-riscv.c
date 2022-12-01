@@ -3,6 +3,8 @@
  * The .NET Foundation licenses this file to you under the MIT license.
  */
 
+#include "mini.h"
+#include "mini-riscv.h"
 #include "mini-runtime.h"
 
 #include <mono/metadata/abi-details.h>
@@ -206,11 +208,173 @@ mono_arch_create_sdb_trampoline (gboolean single_step, MonoTrampInfo **info, gbo
 	return NULL;
 }
 
+/*
+ * mono_arch_get_interp_to_native_trampoline:
+ *
+ *   See tramp-amd64.c for documentation.
+ */
 gpointer
 mono_arch_get_interp_to_native_trampoline (MonoTrampInfo **info)
 {
+#ifndef DISABLE_INTERPRETER
+	guint8 *start = NULL, *code;
+	guint8 *label_start_copy;
+	MonoJumpInfo *ji = NULL;
+	GSList *unwind_ops = NULL;
+	int buf_len, i, framesize = 0, stackpointer, off_methodargs, off_targetaddr;
+
+	buf_len = 512 + 1024;
+	start = code = (guint8 *) mono_global_codeman_reserve (buf_len);
+
+	/** 
+	 * allocate frame
+	 * reference to mini-riscv.c: mono_arch_emit_prolog()
+	 * Stack frame layout:
+	 *  |--------------------------| -- <-- sp + stack_size (FP)
+	 *  | saved return value	   |
+	 *  |--------------------------|
+	 * 	| saved FP reg			   |
+	 *  |--------------------------|
+	 *  | param area			   |
+	 *  |						   |
+	 *  |  CallContext* 		   |
+	 *  |						   |
+	 *  |--------------------------|
+	 *  | realignment			   |
+	 *  |--------------------------| -- <-- sp
+	*/
+	framesize = 4 * sizeof (target_mgreg_t);
+
+	framesize = ALIGN_TO (framesize, MONO_ARCH_FRAME_ALIGNMENT);
+	stackpointer = framesize;
+
+	MINI_BEGIN_CODEGEN ();
+
+	riscv_addi (code, RISCV_SP, RISCV_SP, -stackpointer);
+	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
+
+	// save ra reg to the frame top
+	stackpointer -= sizeof (target_mgreg_t);
+	code = mono_riscv_emit_store(code, RISCV_RA, RISCV_SP, stackpointer);
+	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
+
+	// save previous fp
+	stackpointer -= sizeof (target_mgreg_t);
+	code = mono_riscv_emit_store(code, RISCV_FP, RISCV_SP, stackpointer);
+	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
+
+	// set new fp
+	riscv_addi(code,RISCV_FP,RISCV_SP,framesize);
+	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+
+	/* save CallContext* onto stack */
+	stackpointer -= sizeof (target_mgreg_t);
+	off_methodargs = stackpointer;
+	code = mono_riscv_emit_store (code, RISCV_A1, RISCV_SP, stackpointer);
+	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+
+	/* save target address onto stack */
+	stackpointer -= sizeof (target_mgreg_t);
+	// off_targetaddr = stackpointer;
+	code = mono_riscv_emit_store (code, RISCV_A0, RISCV_SP, stackpointer);
+	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+
+	/* extend the stack space as CallContext has specified */
+	// T0 = CallContext->stack_size
+	code = mono_riscv_emit_load (code, RISCV_T0, RISCV_A1, MONO_STRUCT_OFFSET (CallContext, stack_size));
+	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+
+	// SP = SP - T0
+	// TODO: sub inst can be used under B ext Only
+	riscv_sub (code, RISCV_SP, RISCV_SP, RISCV_T0);
+	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+
+	/* copy stack from the CallContext, T1 = dest, T2 = source */
+	riscv_addi (code, RISCV_T0, RISCV_SP, 0);
+	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+	code = mono_riscv_emit_load (code, RISCV_T1, RISCV_A1, MONO_STRUCT_OFFSET (CallContext, stack));
+	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+
+	label_start_copy = code;
+	riscv_beq (code, RISCV_T0, RISCV_ZERO, 0); //RISCV_R_BEQ
+	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+	guint8 *fixup_beq_exit_copy = code;
+	code = mono_riscv_emit_load(code, RISCV_T3, RISCV_T2, 0);
+	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+	code = mono_riscv_emit_store(code, RISCV_T3, RISCV_T1, 0);
+	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+	riscv_addi (code, RISCV_T1, RISCV_T1, sizeof (target_mgreg_t));
+	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+	riscv_addi (code, RISCV_T2, RISCV_T2, sizeof (target_mgreg_t));
+	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+	riscv_addi (code, RISCV_T0, RISCV_T0, -sizeof (target_mgreg_t));
+	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+
+	riscv_jal (code, RISCV_ZERO, label_start_copy - code);
+	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+	riscv_patch_full(fixup_beq_exit_copy, code, MONO_R_RISCV_BEQ);
+
+	/* Load CallContext* into T0 */
+	riscv_addi (code, RISCV_T0, RISCV_A1, 0);
+	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+
+	/* set all general purpose registers from CallContext */
+	for (i = 0; i < RISCV_N_GAREGS + 1; i++){
+		code = mono_riscv_emit_load (code, RISCV_A0 + i, RISCV_T0, MONO_STRUCT_OFFSET (CallContext, gregs) + i * sizeof (host_mgreg_t));
+		MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+	}
+
+	/* set all floating registers to CallContext  */
+	for (i = 0; i < RISCV_N_FAREGS; i++){
+		code = mono_riscv_emit_fload (code, i, RISCV_FA0, MONO_STRUCT_OFFSET (CallContext, fregs) + i * sizeof (double));
+		MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+	}
+
+	// destory the stack
+	riscv_addi (code, RISCV_SP, RISCV_FP, 0);
+	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+
+	// restore a0
+	code = mono_riscv_emit_load(code, RISCV_A0, RISCV_SP, stackpointer - framesize);
+	stackpointer += sizeof (target_mgreg_t);
+	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+
+	// restore a1
+	code = mono_riscv_emit_load(code, RISCV_A1, RISCV_SP, stackpointer - framesize);
+	stackpointer += sizeof (target_mgreg_t);
+	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+
+	// restore fp
+	code = mono_riscv_emit_load(code, RISCV_FP, RISCV_SP, stackpointer - framesize);
+	stackpointer += sizeof (target_mgreg_t);
+	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+
+	// restore ra
+	code = mono_riscv_emit_load(code, RISCV_RA, RISCV_SP, stackpointer - framesize);
+	stackpointer += sizeof (target_mgreg_t);
+	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+
+	g_assert(stackpointer == framesize);
+
+	riscv_jalr (code, RISCV_ZERO, RISCV_RA, 0);
+	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+
+	g_assert (code - start < buf_len);
+
+	MINI_END_CODEGEN (start, code - start, MONO_PROFILER_CODE_BUFFER_HELPER, NULL);
+
+	if (info)
+		*info = mono_tramp_info_create ("interp_to_native_trampoline", start, code - start, ji, unwind_ops);
+
+	return (guint8*)MINI_ADDR_TO_FTNPTR (start);
+
+
 	NOT_IMPLEMENTED;
 	return NULL;
+#else
+	g_assert_not_reached ();
+	return NULL;
+#endif /* DISABLE_INTERPRETER */
 }
 
 gpointer

@@ -5,7 +5,7 @@ namespace HelloWorld
   {
     static void test(){
       int s = 3;
-      Console.WriteLine("Hello World!"+s);
+      // Console.WriteLine("Hello World!"+s);
     }
 
     static void Main()

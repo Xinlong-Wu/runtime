@@ -1,26 +1,30 @@
 main: # @main
-  addi sp, sp, -64
-  sd ra, 56(sp)
-  sd s0, 48(sp)
-  addi s0, sp, 64
+  addi sp, sp, -32
+  sd ra, 24(sp)
+  sd fp,16(sp)
+  addi fp, sp, 32
+  sd a1, 8(sp)
+  sd a0, 0(sp)
 
-  addi a0, zero, 0
-  sd a0, -16(s0)
-  ld a0, -8(s0)
-  ld a5, 8(a0)
-  ld a0, -8(s0)
-  ld a6, 0(a0)
-
-  addi a0, s0, -16
-  addi a1, s0, -32
-  addi a2, s0, -40
-  addi a3, s0, -48
-  addi a4, s0, -56
-  addi a5, a5, 0
-  jalr ra, 0(a6)
-  ld ra, -16(s0)
-
-  addiw a0, a0, 2048
+  # T0 = CallContext->stack_size
+  ld t0, 192(a0)
+  # SP = SP - T0
+  sub sp, sp, t0
+  # copy stack from the CallContext, T1 = dest, T2 = source
+  addi t1, sp, 0
+  # t2 = CallContext->stack
+  ld t2, 200(a0) 
+start_copy:
+  beq t0, zero, exit_copy
+  ld t3, 0(t2)
+  sd t3, 0(t1)
+  addi t1, t1, 8
+  addi t2, t2, 8
+  addi t0, t0, -8
+  j start_copy
+exit_copy:
+  ret
+  
 
 
   
