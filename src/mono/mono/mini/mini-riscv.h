@@ -180,16 +180,22 @@ struct MonoLMF {
 	// If the second-lowest bit of this field is set, this is a MonoLMFExt.
 	gpointer previous_lmf;
 	gpointer lmf_addr;
-	host_mgreg_t pc;
-	host_mgreg_t sp;
-	host_mgreg_t ra;
-	host_mgreg_t gregs [RISCV_N_GSREGS]; // s0..s11
+	target_mgreg_t pc;
+	target_mgreg_t sp;
+	target_mgreg_t ra;
+	target_mgreg_t gregs [RISCV_N_GSREGS]; // s0..s11
 	double fregs [RISCV_N_FSREGS]; // fs0..fs11
 };
 
 #define MONO_ARCH_INIT_TOP_LMF_ENTRY(lmf)
 
 typedef struct {
+	/* General registers */
+	target_mgreg_t gregs [RISCV_N_GSREGS];
+	/* Floating registers */
+	double fregs [RISCV_N_FSREGS];
+	/* Stack usage, used for passing params on stack */
+	guint32 stack_size;
 	guint8 *stack;
 } CallContext;
 

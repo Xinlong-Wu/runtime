@@ -325,11 +325,17 @@ riscv_patch_full (MonoCompile *cfg, guint8 *code, guint8 *target, int relocation
 			
 			riscv_jal(code, RISCV_RA, (gint32)target & 0xffffe);
 			g_print("jar ra, 0x%x <0x%lx> ", (gint32)target & 0xffffe, (gint32)target);
-			MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+			MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
 			break;
 		default:
 			NOT_IMPLEMENTED;
 	}
+}
+
+static void
+riscv_patch_rel (guint8 *code, guint8 *target, int relocation)
+{
+	riscv_patch_full (NULL, code, target, relocation);
 }
 
 void
@@ -1118,6 +1124,29 @@ mono_riscv_emit_load (guint8 *code, int rd, int rs1, gint32 imm)
 		riscv_ld (code, rd, rd, 0);
 #else
 		riscv_lw (code, rd, rd, 0);
+#endif
+	}
+
+	return code;
+}
+
+// Uses at most 16 bytes on RV32D and 24 bytes on RV64D.
+guint8 *
+mono_riscv_emit_fload (guint8 *code, int rd, int rs1, gint32 imm)
+{
+	if (RISCV_VALID_I_IMM (imm)) {
+#ifdef TARGET_RISCV64
+		riscv_fld (code, rd, rs1, imm);
+#else
+		riscv_flw (code, rd, rs1, imm);
+#endif
+	} else {
+		code = mono_riscv_emit_imm (code, rd, imm);
+		riscv_add (code, rd, rs1, rd);
+#ifdef TARGET_RISCV64
+		riscv_fld (code, rd, rd, 0);
+#else
+		riscv_flw (code, rd, rd, 0);
 #endif
 	}
 
