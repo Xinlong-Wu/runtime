@@ -298,7 +298,6 @@ mono_arch_get_interp_to_native_trampoline (MonoTrampInfo **info)
 	label_start_copy = code;
 	riscv_beq (code, RISCV_T0, RISCV_ZERO, 0); //RISCV_R_BEQ
 	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
-	guint8 *fixup_beq_exit_copy = code;
 	code = mono_riscv_emit_load(code, RISCV_T3, RISCV_T2, 0);
 	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
 	code = mono_riscv_emit_store(code, RISCV_T3, RISCV_T1, 0);
@@ -312,22 +311,22 @@ mono_arch_get_interp_to_native_trampoline (MonoTrampInfo **info)
 
 	riscv_jal (code, RISCV_ZERO, label_start_copy - code);
 	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
-	mono_riscv_patch(fixup_beq_exit_copy, code, MONO_R_RISCV_BEQ);
+	mono_riscv_patch(label_start_copy, code, MONO_R_RISCV_BEQ);
 
 	/* Load CallContext* into T0 */
 	riscv_addi (code, RISCV_T0, RISCV_A1, 0);
 	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
 
 	/* set all general purpose registers from CallContext */
-	int tmp = MONO_STRUCT_OFFSET (CallContext, gregs) + i * sizeof (target_mgreg_t);
-	for (i = 0; i < RISCV_N_GAREGS + 1; i++){
-		code = mono_riscv_emit_load (code, RISCV_A0 + i, RISCV_T0, MONO_STRUCT_OFFSET (CallContext, gregs) + i * sizeof (target_mgreg_t));
+	for (i = 0; i < RISCV_N_GAREGS; i++){
+		code = mono_riscv_emit_load (code, RISCV_A0 + i, RISCV_T0, MONO_STRUCT_OFFSET (CallContext, gregs) + (RISCV_A0 + i) * sizeof (target_mgreg_t));
 		MONO_ARCH_DUMP_CODE_DEBUG(code,1);
 	}
 
 	/* set all floating registers to CallContext  */
 	for (i = 0; i < RISCV_N_FAREGS; i++){
-		code = mono_riscv_emit_fload (code, i, RISCV_FA0, MONO_STRUCT_OFFSET (CallContext, fregs) + i * sizeof (double));
+		int tmp = MONO_STRUCT_OFFSET (CallContext, fregs) + (RISCV_FA0 + i) * sizeof (double);
+		code = mono_riscv_emit_fload (code, RISCV_FA0 + i, RISCV_T0, MONO_STRUCT_OFFSET (CallContext, fregs) + (RISCV_FA0 + i) * sizeof (double));
 		MONO_ARCH_DUMP_CODE_DEBUG(code,1);
 	}
 
