@@ -289,10 +289,10 @@ mono_arch_get_interp_to_native_trampoline (MonoTrampInfo **info)
 	riscv_sub (code, RISCV_SP, RISCV_SP, RISCV_T0);
 	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
 
-	/* copy stack from the CallContext, T1 = dest, T2 = source */
-	riscv_addi (code, RISCV_T0, RISCV_SP, 0);
+	/* copy stack from the CallContext, T0 = stack_size, T1 = dest, T2 = source */
+	riscv_addi (code, RISCV_T1, RISCV_SP, 0);
 	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
-	code = mono_riscv_emit_load (code, RISCV_T1, RISCV_A1, MONO_STRUCT_OFFSET (CallContext, stack));
+	code = mono_riscv_emit_load (code, RISCV_T2, RISCV_A1, MONO_STRUCT_OFFSET (CallContext, stack));
 	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
 
 	label_start_copy = code;
@@ -319,8 +319,9 @@ mono_arch_get_interp_to_native_trampoline (MonoTrampInfo **info)
 	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
 
 	/* set all general purpose registers from CallContext */
+	int tmp = MONO_STRUCT_OFFSET (CallContext, gregs) + i * sizeof (target_mgreg_t);
 	for (i = 0; i < RISCV_N_GAREGS + 1; i++){
-		code = mono_riscv_emit_load (code, RISCV_A0 + i, RISCV_T0, MONO_STRUCT_OFFSET (CallContext, gregs) + i * sizeof (host_mgreg_t));
+		code = mono_riscv_emit_load (code, RISCV_A0 + i, RISCV_T0, MONO_STRUCT_OFFSET (CallContext, gregs) + i * sizeof (target_mgreg_t));
 		MONO_ARCH_DUMP_CODE_DEBUG(code,1);
 	}
 
