@@ -191,9 +191,9 @@ struct MonoLMF {
 
 typedef struct {
 	/* General registers */
-	target_mgreg_t gregs [RISCV_N_GSREGS];
+	target_mgreg_t gregs [RISCV_N_GREGS];
 	/* Floating registers */
-	double fregs [RISCV_N_FSREGS];
+	double fregs [RISCV_N_FREGS];
 	/* Stack usage, used for passing params on stack */
 	guint32 stack_size;
 	guint8 *stack;
