@@ -324,7 +324,7 @@ riscv_patch_full (MonoCompile *cfg, guint8 *code, guint8 *target, int relocation
 				NOT_IMPLEMENTED;
 			
 			riscv_jal(code, RISCV_RA, (gint32)target & 0xffffe);
-			g_print("jar ra, 0x%x <0x%lx> ", (gint32)target & 0xffffe, (gint32)target);
+			g_print("jar ra, 0x%x <0x%lx> ", (gint32)target & 0xffffe, target);
 			MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
 			break;
 		default:
@@ -336,6 +336,12 @@ static void
 riscv_patch_rel (guint8 *code, guint8 *target, int relocation)
 {
 	riscv_patch_full (NULL, code, target, relocation);
+}
+
+void
+mono_riscv_patch (guint8 *code, guint8 *target, int relocation)
+{
+	riscv_patch_rel (code, target, relocation);
 }
 
 void
@@ -902,7 +908,7 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 			ins->opcode = OP_REGOFFSET;
 			ins->inst_basereg = cfg->frame_reg;
 			ins->inst_offset = - (stack_size + stack_alloc_res [i]);
-			printf ("allocated local %d to %d; ", i, ins->inst_offset); mono_print_ins (ins);
+			printf ("allocated local %d to %ld; ", i, ins->inst_offset); mono_print_ins (ins);
 		}
 	}
 	stack_size += locals_stack_size;
@@ -941,7 +947,7 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 				stack_size = ALIGN_TO (stack_size, sizeof (target_mgreg_t));
 				stack_size += sizeof (target_mgreg_t);
 				ins->inst_offset = -stack_size;
-				printf ("allocated local %d to %d; ", i, ins->inst_offset); mono_print_ins (ins);
+				printf ("allocated local %d to %ld; ", i, ins->inst_offset); mono_print_ins (ins);
 			}
 
 		}

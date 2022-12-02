@@ -312,7 +312,7 @@ mono_arch_get_interp_to_native_trampoline (MonoTrampInfo **info)
 
 	riscv_jal (code, RISCV_ZERO, label_start_copy - code);
 	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
-	riscv_patch_full(fixup_beq_exit_copy, code, MONO_R_RISCV_BEQ);
+	mono_riscv_patch(fixup_beq_exit_copy, code, MONO_R_RISCV_BEQ);
 
 	/* Load CallContext* into T0 */
 	riscv_addi (code, RISCV_T0, RISCV_A1, 0);
