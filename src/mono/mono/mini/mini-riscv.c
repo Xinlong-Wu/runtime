@@ -327,6 +327,18 @@ riscv_patch_full (MonoCompile *cfg, guint8 *code, guint8 *target, int relocation
 			g_print("jar ra, 0x%x <0x%lx> ", (gint32)target & 0xffffe, target);
 			MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
 			break;
+		case MONO_R_RISCV_BEQ:{
+			int offset = target - code;
+			g_assert (RISCV_VALID_B_IMM ((gint32) (gssize) (offset)));
+
+			gint32 inst = *(gint32 *) code;
+			gint32 rs1 = RISCV_BITS (inst, 15, 19);
+			gint32 rs2 = RISCV_BITS (inst, 20, 24);
+			riscv_beq (code, rs1, rs2, offset);
+			g_print("BEQ x%d, x%d, 0x%x <0x%lx> ", rs1, rs2, (gint32)offset & 0xffe, offset);
+			MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
+			break;
+		}
 		default:
 			NOT_IMPLEMENTED;
 	}
