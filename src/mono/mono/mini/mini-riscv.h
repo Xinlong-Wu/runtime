@@ -202,9 +202,13 @@ typedef struct {
 typedef enum {
 	ArgInIReg = 0x00,
 	ArgOnStack = 0x10,
-	// ArgInFReg,
+	ArgInFReg,
 	ArgStructByVal,
 	ArgStructByAddr,
+	/*
+	 * Vtype passed in consecutive int registers.
+	 */
+	ArgVtypeByRef,
 	ArgNone // only in void return type
 } ArgStorage;
 
