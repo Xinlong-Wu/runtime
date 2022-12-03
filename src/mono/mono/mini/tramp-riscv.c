@@ -317,7 +317,7 @@ mono_arch_get_interp_to_native_trampoline (MonoTrampInfo **info)
 	riscv_addi (code, RISCV_T0, RISCV_A1, 0);
 	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
 
-	/* set all general purpose registers from CallContext */
+	/* set all general registers from CallContext */
 	for (i = 0; i < RISCV_N_GAREGS; i++){
 		code = mono_riscv_emit_load (code, RISCV_A0 + i, RISCV_T0, MONO_STRUCT_OFFSET (CallContext, gregs) + (RISCV_A0 + i) * sizeof (target_mgreg_t));
 		MONO_ARCH_DUMP_CODE_DEBUG(code,1);
@@ -367,10 +367,6 @@ mono_arch_get_interp_to_native_trampoline (MonoTrampInfo **info)
 		*info = mono_tramp_info_create ("interp_to_native_trampoline", start, code - start, ji, unwind_ops);
 
 	return (guint8*)MINI_ADDR_TO_FTNPTR (start);
-
-
-	NOT_IMPLEMENTED;
-	return NULL;
 #else
 	g_assert_not_reached ();
 	return NULL;
