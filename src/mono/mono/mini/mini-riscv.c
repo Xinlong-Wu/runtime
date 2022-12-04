@@ -386,12 +386,7 @@ mono_arch_patch_code_new (MonoCompile *cfg, guint8 *code,
 static void
 add_arg(CallInfo *cinfo, ArgInfo *ainfo, int size, gboolean sign) {
 
-	if( cinfo->next_areg < RISCV_A0 && cinfo->next_areg > RISCV_A7){
-		ainfo->storage = ArgInIReg;
-		ainfo->reg = cinfo->next_areg;
-		cinfo->next_areg ++;
-	}
-	else{
+	if( cinfo->next_areg < RISCV_A0 || cinfo->next_areg > RISCV_A7){
 		ainfo->storage = ArgOnStack;
 		if(cinfo->vararg){
 #ifndef TARGET_RISCV64
@@ -405,6 +400,11 @@ add_arg(CallInfo *cinfo, ArgInfo *ainfo, int size, gboolean sign) {
 		ainfo->slot_size = size;
 		ainfo->is_signed = sign;
 		cinfo->stack_usage += size;
+	}
+	else{
+		ainfo->storage = ArgInIReg;
+		ainfo->reg = cinfo->next_areg;
+		cinfo->next_areg ++;
 	}
 }
 
