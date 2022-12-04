@@ -250,6 +250,8 @@ mono_arch_get_interp_to_native_trampoline (MonoTrampInfo **info)
 
 	MINI_BEGIN_CODEGEN ();
 
+	g_print("======= Generate trampoline code: begin =======\n");
+
 	riscv_addi (code, RISCV_SP, RISCV_SP, -stackpointer);
 	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
 
@@ -361,6 +363,7 @@ mono_arch_get_interp_to_native_trampoline (MonoTrampInfo **info)
 
 	g_assert (code - start < buf_len);
 
+	g_print("======= Generate trampoline code: end =======\n");
 	MINI_END_CODEGEN (start, code - start, MONO_PROFILER_CODE_BUFFER_HELPER, NULL);
 
 	if (info)
