@@ -209,18 +209,21 @@ typedef enum {
 	 * Vtype passed in consecutive int registers.
 	 */
 	ArgVtypeByRef,
+	ArgVtypeOnStack,
+	ArgVtypeInIReg,
 	ArgNone // only in void return type
 } ArgStorage;
 
 #define MONO_ARCH_CHECK_IN_REG(storage) !(storage >> 4)
 
 typedef struct {
-	gint32  offset;
-	guint16 vtsize; /* in param area */
 	guint8  reg;
+	/* ArgVtypeInIRegs */
+	int nregs, size;
 	ArgStorage storage;
-	/* Only if storage == ArgOnStack */
-	int arg_size; // Bytes, will always be rounded up/aligned to 8 byte boundary
+	/* ArgOnStack */
+	int slot_size;
+	gint32  offset;
 	guint8 is_signed : 1;
 } ArgInfo;
 
