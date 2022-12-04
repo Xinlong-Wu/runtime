@@ -384,20 +384,71 @@ mono_arch_patch_code_new (MonoCompile *cfg, guint8 *code,
  * 	if there is no available store it into stack.
  */
 static void
-add_arg(guint32 *nextArgReg, guint32 *stack_size, ArgInfo *ainfo) {
+add_arg(CallInfo *cinfo, ArgInfo *ainfo, int size, gboolean sign) {
 
-	ainfo->offset = *stack_size;
-	// check if there is available Argument Regs
-	if (*nextArgReg > RISCV_A7) {
-		ainfo->storage = ArgOnStack;
-		ainfo->reg = RISCV_SP; /* in the caller */
-		// TODO: change stack size for different type
-		stack_size += 4;
-	}
-	else {
+	if( cinfo->next_areg < RISCV_A0 && cinfo->next_areg > RISCV_A7){
 		ainfo->storage = ArgInIReg;
-		ainfo->reg = *nextArgReg;
-		(*nextArgReg) ++;
+		ainfo->reg = cinfo->next_areg;
+		cinfo->next_areg ++;
+	}
+	else{
+		ainfo->storage = ArgOnStack;
+		if(cinfo->vararg){
+#ifndef TARGET_RISCV64
+			size = 8;
+#else if TARGET_RISCV32
+			size = 4;
+#endif
+		}
+		cinfo->stack_usage = ALIGN_TO (cinfo->stack_usage, size);
+		ainfo->offset = cinfo->stack_usage;
+		ainfo->arg_size = size;
+		ainfo->is_signed = sign;
+		cinfo->stack_usage += size;
+	}
+}
+
+static void
+add_param (CallInfo *cinfo, ArgInfo *ainfo, MonoType *t){
+	MonoType *ptype;
+
+	ptype = mini_get_underlying_type (t);
+	// FIXME: May break some ABI rules
+	switch (ptype->type){
+		case MONO_TYPE_VOID:
+			ainfo->storage = ArgNone;
+			break;
+		case MONO_TYPE_I1:
+			add_arg (cinfo, ainfo, 1, TRUE);
+			break;
+		case MONO_TYPE_U1:
+			add_arg (cinfo, ainfo, 1, FALSE);
+			break;
+		case MONO_TYPE_I2:
+			add_arg (cinfo, ainfo, 2, TRUE);
+			break;
+		case MONO_TYPE_U2:
+			add_arg (cinfo, ainfo, 2, FALSE);
+			break;
+		case MONO_TYPE_I4:
+			add_arg (cinfo, ainfo, 4, TRUE);
+			break;
+		case MONO_TYPE_U4:
+			add_arg (cinfo, ainfo, 4, FALSE);
+			break;
+		case MONO_TYPE_I8:
+		case MONO_TYPE_I:
+			add_arg (cinfo, ainfo, 8, TRUE);
+			break;
+		case MONO_TYPE_U8:
+		case MONO_TYPE_U:
+			add_arg (cinfo, ainfo, 8, FALSE);
+			break;
+		
+		default:
+			g_print ("Can't handle as return value 0x%x\n", ptype->type);
+			g_assert_not_reached();
+			break;
 	}
 }
 
@@ -416,94 +467,34 @@ get_call_info(MonoMemPool *mp, MonoMethodSignature *sig){
 	else
 		cinfo = g_malloc0 (sizeof (CallInfo) + (sizeof (ArgInfo) * paramNum));
 
+	// return value
+	cinfo->next_areg = RISCV_A0;
+	add_param (cinfo, &cinfo->ret, sig->ret);
 
-	// process the store type of return val
-	MonoType *ret_type = mini_get_underlying_type (sig->ret);
-	switch (ret_type->type){
-		case MONO_TYPE_VOID:
-			cinfo->ret.storage = ArgNone;
-			break;
-		case MONO_TYPE_I:
-			cinfo->ret.storage = ArgInIReg;
-			cinfo->ret.reg = RISCV_RA;
-			break;
-		
-		default:
-			g_print ("Can't handle as return value 0x%x\n", ret_type->type);
-			g_assert_not_reached();
-			break;
-	}
+	// reset status
+	cinfo->next_areg = RISCV_A0;
+	cinfo->stack_usage = 0;
 
-	guint32 nextArgReg = RISCV_A0;
-	guint32 stack_size = 0;
 	// add this pointer as first argument if hasthis == true
 	if (sig->hasthis)
-		add_arg(&nextArgReg, &stack_size, cinfo->args + 0);
+		add_arg (cinfo, cinfo->args + 0, 8, FALSE);
 
-	// TODO: only consider void return type for now, so skip the return reg.
+	// other general Arguments
 	guint32 paramStart = 0;
-	ArgStorage ret_storage = cinfo->ret.storage;
-	if(ret_storage != ArgNone){
-		paramStart = 1;
-	}
-
-	// TODO: process if function call has variable parameter
-	if (!sig->pinvoke && (sig->call_convention == MONO_CALL_VARARG) && (nextArgReg == RISCV_A0)) {
-		NOT_IMPLEMENTED;
-	}
-
-	// process other general Arguments
 	for(guint32 i = paramStart; i < sig->param_count; ++i){
 		ArgInfo *ainfo = &cinfo->args [sig->hasthis + i];
 		MonoType *ptype;
 
 		// process the variable parameter sig->sentinelpos mark the first VARARG
-		if (!sig->pinvoke && (sig->call_convention == MONO_CALL_VARARG) && (i == sig->sentinelpos)) {
+		if ((sig->call_convention == MONO_CALL_VARARG) && (i == sig->sentinelpos)) {
 			NOT_IMPLEMENTED;
 		}
 
-		ptype = mini_get_underlying_type (sig->params [i]);
-		switch (ptype->type)
-		{
-			case MONO_TYPE_I1:
-				ainfo->is_signed = 1;
-			case MONO_TYPE_U1:
-				add_arg (&nextArgReg, &stack_size, ainfo);
-				ainfo->byte_arg_size = 1;
-				break;
-			case MONO_TYPE_I2:
-				ainfo->is_signed = 1;
-			case MONO_TYPE_U2:
-				add_arg (&nextArgReg, &stack_size, ainfo);
-				ainfo->byte_arg_size = 2;
-				break;
-			case MONO_TYPE_I4:
-				ainfo->is_signed = 1;
-			case MONO_TYPE_U4:
-				add_arg (&nextArgReg, &stack_size, ainfo);
-				ainfo->byte_arg_size = 4;
-				break;
-			case MONO_TYPE_I8:
-				ainfo->is_signed = 1;
-			case MONO_TYPE_U8:
-				add_arg (&nextArgReg, &stack_size, ainfo);
-				ainfo->byte_arg_size = 8;
-				break;
-			case MONO_TYPE_I:
-				ainfo->is_signed = 1;
-			case MONO_TYPE_U:
-				add_arg (&nextArgReg, &stack_size, ainfo);
-				break;
-
-			default:
-				g_print("Can't handle parameter with type value 0x%x\n", ptype->type);
-				g_assert_not_reached();
-				break;
-		}
+		add_param (cinfo, ainfo, sig->params [i]);
 	}
 
-	cinfo->stack_usage = stack_size;
-	cinfo->reg_usage = nextArgReg;
+	cinfo->stack_usage = ALIGN_TO (cinfo->stack_usage, MONO_ARCH_FRAME_ALIGNMENT);
+	
 	return cinfo;
 }
 
