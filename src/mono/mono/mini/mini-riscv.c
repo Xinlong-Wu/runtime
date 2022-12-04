@@ -402,9 +402,47 @@ add_arg(CallInfo *cinfo, ArgInfo *ainfo, int size, gboolean sign) {
 		}
 		cinfo->stack_usage = ALIGN_TO (cinfo->stack_usage, size);
 		ainfo->offset = cinfo->stack_usage;
-		ainfo->arg_size = size;
+		ainfo->slot_size = size;
 		ainfo->is_signed = sign;
 		cinfo->stack_usage += size;
+	}
+}
+
+static void
+add_valuetype (CallInfo *cinfo, ArgInfo *ainfo, MonoType *t){
+	int i, size, align_size, nregs;
+	guint32 align;
+
+	size = mini_type_stack_size_full (t, &align, cinfo->pinvoke);
+#ifndef TARGET_RISCV64
+	align_size = ALIGN_TO (size, 8);
+	nregs = align_size / 8;
+#else if TARGET_RISCV32
+	align_size = ALIGN_TO (size, 4);
+	nregs = align_size / 4;
+#endif
+	
+	if (align_size > 16) {
+		ainfo->storage = ArgVtypeByRef;
+		ainfo->size = size;
+		return;
+	}
+
+	// save it on stack if don't have enough regs
+	if (cinfo->next_areg + nregs > RISCV_A7){
+		size = ALIGN_TO (size, 8);
+		ainfo->storage = ArgVtypeOnStack;
+		cinfo->stack_usage = ALIGN_TO (cinfo->stack_usage, align);
+		ainfo->offset = cinfo->stack_usage;
+		ainfo->size = size;
+		cinfo->stack_usage += size;
+		cinfo->next_areg = RISCV_A7 + 1;
+	} else {
+		ainfo->storage = ArgVtypeInIReg;
+		ainfo->reg = cinfo->next_areg;
+		ainfo->nregs = nregs;
+		ainfo->size = size;
+		cinfo->next_areg += nregs;
 	}
 }
 
@@ -443,6 +481,9 @@ add_param (CallInfo *cinfo, ArgInfo *ainfo, MonoType *t){
 		case MONO_TYPE_U8:
 		case MONO_TYPE_U:
 			add_arg (cinfo, ainfo, 8, FALSE);
+			break;
+		case MONO_TYPE_VALUETYPE:
+			add_valuetype (cinfo, ainfo, ptype);
 			break;
 		
 		default:
