@@ -543,10 +543,12 @@ static gpointer
 arg_get_storage (CallContext *ccontext, ArgInfo *ainfo){
 	switch (ainfo->storage) {
 		case ArgInIReg:
+		case ArgVtypeInIReg:
 			return &ccontext->gregs [ainfo->reg];
 		case ArgInFReg:
 			return &ccontext->fregs [ainfo->reg];
 		case ArgOnStack:
+		case ArgVtypeOnStack:
 			return ccontext->stack + ainfo->offset;
 		default:
 			g_print("Can't process storage type %d\n", ainfo->storage);
@@ -610,7 +612,24 @@ mono_arch_get_native_call_context_args (CallContext *ccontext, gpointer frame, M
 void
 mono_arch_get_native_call_context_ret (CallContext *ccontext, gpointer frame, MonoMethodSignature *sig)
 {
-	NOT_IMPLEMENTED;
+	const MonoEECallbacks *interp_cb;
+	CallInfo *cinfo;
+	ArgInfo *ainfo;
+	gpointer storage;
+
+	if (sig->ret->type == MONO_TYPE_VOID)
+		return;
+
+	interp_cb = mini_get_interp_callbacks ();
+	cinfo = get_call_info (NULL, sig);
+	ainfo = &cinfo->ret;
+
+	if (ainfo->storage != ArgVtypeByRef){
+		storage = arg_get_storage (ccontext, ainfo);
+		interp_cb->data_to_frame_arg ((MonoInterpFrameHandle)frame, sig, -1, storage);
+	}
+
+	g_free (cinfo);
 }
 
 #ifndef DISABLE_JIT
@@ -1589,14 +1608,16 @@ mono_arch_stop_single_stepping (void)
 gboolean
 mono_arch_is_single_step_event (void *info, void *sigctx)
 {
-	NOT_IMPLEMENTED;
+	// NOT_IMPLEMENTED;
+	/* No reference Information, Don't know how to implement */
 	return FALSE;
 }
 
 gboolean
 mono_arch_is_breakpoint_event (void *info, void *sigctx)
 {
-	NOT_IMPLEMENTED;
+	// NOT_IMPLEMENTED;
+	/* No reference Information, Don't know how to implement */
 	return FALSE;
 }
 
