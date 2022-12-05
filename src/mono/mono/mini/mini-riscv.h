@@ -161,7 +161,11 @@
 
 typedef struct {
 	CallInfo *cinfo;
+	int saved_gregs_offset;
 	guint32 saved_iregs;
+	MonoInst *seq_point_info_var;
+	MonoInst *ss_tramp_var;
+	MonoInst *bp_tramp_var;
 } MonoCompileArch;
 
 #define MONO_CONTEXT_SET_LLVM_EXC_REG(ctx, exc) \
@@ -214,7 +218,6 @@ typedef enum {
 	ArgNone // only in void return type
 } ArgStorage;
 
-#define MONO_ARCH_CHECK_IN_REG(storage) !(storage >> 4)
 
 typedef struct {
 	guint8  reg;
@@ -228,6 +231,7 @@ typedef struct {
 } ArgInfo;
 
 struct CallInfo {
+	int nargs;
 	guint32 next_areg;
 	gboolean pinvoke, vararg;
 	guint32 stack_usage;
