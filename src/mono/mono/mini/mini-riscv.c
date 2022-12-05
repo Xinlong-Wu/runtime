@@ -1186,6 +1186,12 @@ loop_start:
 				ins->inst_imm = 0;
 
 				goto loop_start;
+			case OP_NOP:
+				ins->inst_imm = 0;
+				ins->dreg = 0;
+				ins->sreg1 = 0;
+				ins->opcode = OP_ADD_IMM;
+				break;
 			default:
 				printf ("unable to lowering following IR:"); mono_print_ins (ins);
 				NOT_IMPLEMENTED;
