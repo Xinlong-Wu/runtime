@@ -26,7 +26,7 @@
 #
 #     a    a0
 #     c    all caller-saved registers
-
+nop: len:32
 il_seq_point: len:0
 
 voidcall: len:32 clob:c
