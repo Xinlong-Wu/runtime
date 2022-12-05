@@ -966,32 +966,41 @@ void
 mono_arch_allocate_vars (MonoCompile *cfg)
 {
 	MonoMethodSignature *sig;
-	int stack_size = 0;
-	gint32 *stack_alloc_res;
-	guint32 locals_stack_size, locals_stack_align;
+	MonoInst *ins;
 	CallInfo *cinfo;
+	ArgInfo *ainfo;
+	int offset, size, align;
+	guint32 locals_stack_size, locals_stack_align;
+	gint32 *local_stack;
 
-	// save FP reg to stack firstly
-	cfg->frame_reg = RISCV_FP;
-	stack_size += sizeof (target_mgreg_t);
-
+	/*
+	 * Allocate arguments and locals to either register (OP_REGVAR) or to a stack slot (OP_REGOFFSET).
+	 * Compute cfg->stack_offset and update cfg->used_int_regs.
+	 */
 	sig = mono_method_signature_internal (cfg->method);
+
 	if (!cfg->arch.cinfo)
 		cfg->arch.cinfo = get_call_info (cfg->mempool, sig);
 	cinfo = cfg->arch.cinfo;
 
-	cfg->arch.saved_iregs = cfg->used_int_regs;
+	offset = 0;
+	// save FP reg to stack firstly
+	cfg->frame_reg = RISCV_FP;
+	offset += sizeof (target_mgreg_t);
+
 	if (cfg->method->save_lmf) {
 		/* Save all callee-saved registers normally, and restore them when unwinding through an LMF */
 		cfg->arch.saved_iregs |= MONO_ARCH_CALLEE_SAVED_REGS;
 	}
-
-	/* Reserve space for callee saved registers */
-	for (int i = 0; i < RISCV_N_GREGS; ++i){
-		if (MONO_ARCH_IS_CALLEE_SAVED_REG (i) && (cfg->arch.saved_iregs & (1 << i))) {
-			stack_size += sizeof (target_mgreg_t);
-		}
+	else {
+		/* Callee saved regs */
+		cfg->arch.saved_gregs_offset = offset;
+		for (guint i = 0; i < 32; ++i)
+			if ((MONO_ARCH_CALLEE_SAVED_REGS & (1 << i)) && (cfg->used_int_regs & (1 << i)))
+				offset += sizeof (target_mgreg_t);
 	}
+
+	/* Return value */
 	if (sig->ret->type != MONO_TYPE_VOID) {
 		switch (cinfo->ret.storage){
 			case ArgNone:
@@ -1008,67 +1017,97 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 		}
 	}
 
-	/* Allocate locals */
-	stack_alloc_res = mono_allocate_stack_slots (cfg, FALSE, &locals_stack_size, &locals_stack_align);
-	if (locals_stack_align) {
-		stack_size += (locals_stack_align - 1);
-		stack_size &= ~(locals_stack_align - 1);
-	}
-	cfg->locals_min_stack_offset = - (stack_size + locals_stack_size);
-	cfg->locals_max_stack_offset = - stack_size;
+	/* Arguments */
+	for (guint i = 0; i < sig->param_count + sig->hasthis; ++i){
+		ainfo = cinfo->args + i;
 
-	for (int i = cfg->locals_start; i < cfg->num_varinfo; i++) {
-		if (stack_alloc_res [i] != -1) {
-			MonoInst *ins = cfg->varinfo [i];
-			ins->opcode = OP_REGOFFSET;
-			ins->inst_basereg = cfg->frame_reg;
-			ins->inst_offset = - (stack_size + stack_alloc_res [i]);
-			printf ("allocated local %d to %ld; ", i, ins->inst_offset); mono_print_ins (ins);
-		}
-	}
-	stack_size += locals_stack_size;
+		ins = cfg->args [i];
 
-	if (!sig->pinvoke && (sig->call_convention == MONO_CALL_VARARG)) {
-		NOT_IMPLEMENTED;
-	}
+		if (ins->opcode == OP_REGVAR)
+			continue;
 
-	// allocate vars
-	for (int i = 0; i < sig->param_count + sig->hasthis; ++i){
-		MonoInst *ins = cfg->args [i];
-		if (ins->opcode != OP_REGVAR) {
-			ArgInfo *ainfo = &cinfo->args [i];
-			gboolean inreg = MONO_ARCH_CHECK_IN_REG(ainfo->storage);
+		ins->opcode = OP_REGOFFSET;
+		ins->inst_basereg = cfg->frame_reg;
 
-			/* FIXME: Allocate volatile arguments to registers */
-			if (ins->flags & (MONO_INST_VOLATILE|MONO_INST_INDIRECT))
-				inreg = FALSE;
-
-			ins->opcode = OP_REGOFFSET;
-			switch (ainfo->storage) {
-				case ArgInIReg:
-					ins->opcode = OP_REGVAR;
-					ins->dreg = ainfo->reg;
-					break;
-				default:
-					NOT_IMPLEMENTED;
-					break;
-			}
-
-			/* following arguments are saved to the stack in the prolog */
-			if (!inreg) {
+		switch (ainfo->storage){
+			case ArgInIReg:
+			case ArgInFReg:
+				ins->inst_offset = offset;
+				offset += sizeof (target_mgreg_t);
+				break;
+			case ArgOnStack:
+			case ArgVtypeOnStack:
+				/* These are in the parent frame */
+				NOT_IMPLEMENTED;
+				break;
+			case ArgVtypeInIReg:
 				ins->opcode = OP_REGOFFSET;
 				ins->inst_basereg = cfg->frame_reg;
 				/* These arguments are saved to the stack in the prolog */
-				stack_size = ALIGN_TO (stack_size, sizeof (target_mgreg_t));
-				stack_size += sizeof (target_mgreg_t);
-				ins->inst_offset = -stack_size;
-				printf ("allocated local %d to %ld; ", i, ins->inst_offset); mono_print_ins (ins);
-			}
-
+				ins->inst_offset = offset;
+				if (cfg->verbose_level >= 2)
+					printf ("arg %d allocated to %s+0x%0x.\n", i, mono_arch_regname (ins->inst_basereg), (int)ins->inst_offset);
+				break;
+			default:
+				NOT_IMPLEMENTED;
+				break;
 		}
 	}
 
-	cfg->stack_offset = stack_size;
+	/* OP_SEQ_POINT depends on these */
+	// FIXME: Allocate these to registers
+	ins = cfg->arch.seq_point_info_var;
+	if (ins) {
+		size = sizeof (target_mgreg_t);
+		align = sizeof (target_mgreg_t);
+		offset += align - 1;
+		offset &= ~(align - 1);
+		ins->opcode = OP_REGOFFSET;
+		ins->inst_basereg = cfg->frame_reg;
+		ins->inst_offset = offset;
+		offset += size;
+	}
+	ins = cfg->arch.ss_tramp_var;
+	if (ins) {
+		size = sizeof (target_mgreg_t);
+		align = sizeof (target_mgreg_t);
+		offset += align - 1;
+		offset &= ~(align - 1);
+		ins->opcode = OP_REGOFFSET;
+		ins->inst_basereg = cfg->frame_reg;
+		ins->inst_offset = offset;
+		offset += size;
+	}
+	ins = cfg->arch.bp_tramp_var;
+	if (ins) {
+		size = sizeof (target_mgreg_t);
+		align = sizeof (target_mgreg_t);
+		offset += align - 1;
+		offset &= ~(align - 1);
+		ins->opcode = OP_REGOFFSET;
+		ins->inst_basereg = cfg->frame_reg;
+		ins->inst_offset = offset;
+		offset += size;
+	}
+
+	/* Allocate locals */
+	local_stack = mono_allocate_stack_slots (cfg, FALSE, &locals_stack_size, &locals_stack_align);
+	if (locals_stack_align)
+		offset = ALIGN_TO (offset, locals_stack_align);
+
+	for (guint i = cfg->locals_start; i < cfg->num_varinfo; i++){
+		if (local_stack [i] != -1) {
+			ins = cfg->varinfo [i];
+			ins->opcode = OP_REGOFFSET;
+			ins->inst_basereg = cfg->frame_reg;
+			ins->inst_offset = offset + local_stack [i];
+			printf ("allocated local %d to %ld; ", i, ins->inst_offset); mono_print_ins (ins);
+		}
+	}
+	offset += locals_stack_size;
+	offset = ALIGN_TO (offset, MONO_ARCH_FRAME_ALIGNMENT);
+
+	cfg->stack_offset = offset;
 }
 
 #define NEW_INS(cfg,ins,dest,op) do {	\
@@ -1311,11 +1350,78 @@ mono_riscv_emit_call (MonoCompile *cfg, guint8* code, MonoJumpInfoType patch_typ
 }
 
 /*
+ * emit_store_regset:
+ *
+ *   Emit code to store the registers in REGS into consecutive memory locations starting
+ * at BASEREG+OFFSET.
+ */
+static __attribute__ ((__warn_unused_result__)) guint8*
+emit_store_regset (guint8 *code, guint64 regs, int basereg, int offset){
+	int i, pos = 0;
+
+	for (i = 0; i < 32; ++i) {
+		if (regs & (1 << i)) {
+			code = mono_riscv_emit_store (code, i, basereg, -(offset + (pos * sizeof(target_mgreg_t))));
+		}
+	}
+	return code;
+}
+
+/*
+ * emit_setup_lmf:
+ *
+ *   Emit code to initialize an LMF structure at LMF_OFFSET.
+ * Clobbers ip0/ip1.
+ */
+static guint8*
+emit_setup_lmf (MonoCompile *cfg, guint8 *code, gint32 lmf_offset, int cfa_offset){
+	/*
+	 * The LMF should contain all the state required to be able to reconstruct the machine state
+	 * at the current point of execution. Since the LMF is only read during EH, only callee
+	 * saved etc. registers need to be saved.
+	 * FIXME: Save callee saved fp regs, JITted code doesn't use them, but native code does, and they
+	 * need to be restored during EH.
+	 */
+
+	/* pc */
+	code = mono_riscv_emit_imm (code, RISCV_T0, (gsize)code);
+	code = mono_riscv_emit_store (code, RISCV_T0, RISCV_FP, -(lmf_offset + MONO_STRUCT_OFFSET (MonoLMF, pc)));
+	/* gregs + fp + sp */
+	// code = emit_store_regset_cfa (cfg, code, (MONO_ARCH_CALLEE_SAVED_REGS | (1 << RISCV_FP) | (1 << RISCV_SP)), RISCV_FP, lmf_offset + MONO_STRUCT_OFFSET (MonoLMF, gregs), cfa_offset, (1 << RISCV_FP) | (1 << RISCV_SP));
+	code = emit_store_regset (code, (MONO_ARCH_CALLEE_SAVED_REGS | (1 << RISCV_FP) | (1 << RISCV_SP)), RISCV_FP, lmf_offset + MONO_STRUCT_OFFSET (MonoLMF, gregs));
+
+	return code;
+}
+
+static guint8*
+emit_move_args (MonoCompile *cfg, guint8 *code){
+	MonoInst *ins;
+	CallInfo *cinfo;
+	ArgInfo *ainfo;
+	int i, part;
+	MonoMethodSignature *sig = mono_method_signature_internal (cfg->method);
+
+	cinfo = cfg->arch.cinfo;
+	g_assert (cinfo);
+
+	for (i = 0; i < cinfo->nargs; ++i){
+		ainfo = cinfo->args + i;
+		ins = cfg->args [i];
+
+		NOT_IMPLEMENTED;
+	}
+
+	return code;
+}
+
+/*
  * Stack frame layout:
  *  |--------------------------| -- <-- sp + stack_size (FP)
  *  | saved return value	   |
  *  |--------------------------| 
  * 	| saved FP reg			   |
+ *  |--------------------------| 
+ *  | callee saved regs		   |
  *  |--------------------------| 
  *  | param area			   |
  *  |--------------------------|
@@ -1376,10 +1482,31 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 
 	// save other registers
-	// TODO
+	if (cfg->param_area) {
+		/* The param area is below the frame pointer */
+		riscv_addi(code, RISCV_SP, RISCV_SP, -cfg->param_area);
+	}
 
-	// g_assert(stack_size == alloc_size && "prologue emit error: there are stack not used");
+	if (cfg->method->save_lmf){
+		code = emit_setup_lmf (cfg, code, cfg->lmf_var->inst_offset, cfa_offset);
+	}
+	else{
+		/* Save gregs */
+		code = emit_store_regset (code, MONO_ARCH_CALLEE_SAVED_REGS & cfg->used_int_regs, RISCV_FP, cfg->arch.saved_gregs_offset);
+	}
+	
+	/* Save return area addr received */
+	if (cfg->vret_addr) {
+		NOT_IMPLEMENTED;
+	}
 
+	/*
+	 * Move arguments to their registers/stack locations.
+	 */
+	code = emit_move_args (cfg, code);
+
+	/* TODO: Initialize seq_point_info_var */
+	
 	return code;
 }
 
