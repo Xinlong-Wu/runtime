@@ -1327,58 +1327,58 @@ mono_riscv_emit_call (MonoCompile *cfg, guint8* code, MonoJumpInfoType patch_typ
 guint8 *
 mono_arch_emit_prolog (MonoCompile *cfg)
 {
-	// MonoMethod *method = cfg->method;
-	// MonoMethodSignature *sig;
-	// MonoInst *inst;
+	MonoMethod *method = cfg->method;
+	MonoMethodSignature *sig;
+	MonoBasicBlock *bb;
 	guint8 *code;
-	// guint32 iregs_to_save = 0;
-	int alloc_size;
-	// int cfa_offset;
+	int cfa_offset, max_offset;
 
-	/* lmf_offset is the offset of the LMF from our stack pointer. */
-	// guint32 lmf_offset = cfg->arch.lmf_offset;
-
-	cfg->code_size = MAX (cfg->header->code_size * 4, 1024);;
-	code = (unsigned char*)g_malloc (cfg->code_size);
-	cfg->native_code = code;
+	sig = mono_method_signature_internal (method);
+	cfg->code_size = MAX (cfg->header->code_size * 4, 1024);
+	code = cfg->native_code = g_malloc (cfg->code_size);
 
 	/* realigned */
 	cfg->stack_offset = ALIGN_TO (cfg->stack_offset, MONO_ARCH_FRAME_ALIGNMENT);
-	
 
-	/* stack_offset should not be changed here. */
-	alloc_size = cfg->stack_offset;
-	cfg->stack_usage = alloc_size;
-
-	// iregs_to_save = (cfg->used_int_regs & MONO_ARCH_CALLEE_SAVED_REGS);
-
-	/* set up frame */
-	// cfa_offset = 0;
-	// mono_emit_unwind_op_def_cfa (cfg, code, RISCV_SP, cfa_offset);
-
-	// set up stack pointer
+	/*
+	 * - Setup frame
+	 */
+	cfa_offset = 0;
 	int stack_size = 0;
-	riscv_addi(code,RISCV_SP,RISCV_SP,-alloc_size);
-	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+	mono_emit_unwind_op_def_cfa (cfg, code, RISCV_SP, 0);
 
-	// save return value
-	stack_size += sizeof(target_mgreg_t);
-	code = mono_riscv_emit_store(code, RISCV_RA, RISCV_SP, alloc_size - stack_size);
-	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+	/* Setup frame */
+	if (RISCV_VALID_I_IMM (-cfg->stack_offset)){
+		riscv_addi(code,RISCV_SP,RISCV_SP,-cfg->stack_offset);
+		MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 
-	// save a0(fp) value
-	stack_size += sizeof(target_mgreg_t);
-	code = mono_riscv_emit_store(code, RISCV_FP, RISCV_SP, alloc_size - stack_size);
+		// save return value
+		stack_size += sizeof(target_mgreg_t);
+		code = mono_riscv_emit_store(code, RISCV_RA, RISCV_SP, cfg->stack_offset - stack_size);
+		MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+
+		// save s0(fp) value
+		stack_size += sizeof(target_mgreg_t);
+		code = mono_riscv_emit_store(code, RISCV_FP, RISCV_SP, cfg->stack_offset - stack_size);
+		MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+	}
+	else{
+		NOT_IMPLEMENTED;
+	}
+
+	cfa_offset += cfg->stack_offset;
+	mono_emit_unwind_op_def_cfa_offset (cfg, code, cfa_offset);
+	mono_emit_unwind_op_offset (cfg, code, RISCV_RA, cfa_offset - sizeof(target_mgreg_t));
+	mono_emit_unwind_op_offset (cfg, code, RISCV_FP, cfa_offset - (sizeof(target_mgreg_t) * 2));
+
+	// set s0(fp) value
+	riscv_addi(code,RISCV_FP,RISCV_SP,cfg->stack_offset);
 	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 
 	// save other registers
 	// TODO
 
 	// g_assert(stack_size == alloc_size && "prologue emit error: there are stack not used");
-
-	// set new a0(fp) value
-	riscv_addi(code,RISCV_FP,RISCV_SP,alloc_size);
-	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 
 	return code;
 }
