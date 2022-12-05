@@ -332,8 +332,8 @@ riscv_patch_full (MonoCompile *cfg, guint8 *code, guint8 *target, int relocation
 			g_assert (RISCV_VALID_B_IMM ((gint32) (gssize) (offset)));
 
 			gint32 inst = *(gint32 *) code;
-			gint32 rs1 = RISCV_BITS (inst, 15, 19);
-			gint32 rs2 = RISCV_BITS (inst, 20, 24);
+			gint32 rs1 = RISCV_BITS (inst, 15, 5);
+			gint32 rs2 = RISCV_BITS (inst, 20, 5);
 			riscv_beq (code, rs1, rs2, offset);
 			g_print("BEQ %s, %s, 0x%x <0x%lx> ", mono_arch_regname(rs1), mono_arch_regname(rs2), (gint32)offset & 0xffe, offset);
 			MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
@@ -475,11 +475,16 @@ add_param (CallInfo *cinfo, ArgInfo *ainfo, MonoType *t){
 			add_arg (cinfo, ainfo, 4, FALSE);
 			break;
 		case MONO_TYPE_I8:
+#ifdef TARGET_RISCV64
 		case MONO_TYPE_I:
+#endif
 			add_arg (cinfo, ainfo, 8, TRUE);
 			break;
-		case MONO_TYPE_U8:
+#ifdef TARGET_RISCV64
 		case MONO_TYPE_U:
+		case MONO_TYPE_OBJECT:
+#endif
+		case MONO_TYPE_U8:
 			add_arg (cinfo, ainfo, 8, FALSE);
 			break;
 		case MONO_TYPE_VALUETYPE:
@@ -1097,6 +1102,9 @@ loop_start:
 		switch (ins->opcode){
 			case OP_IL_SEQ_POINT:
 			case OP_VOIDCALL:
+			case OP_I8CONST:
+			case OP_ICONST:
+			case OP_GC_SAFE_POINT:
 				break;
 			case OP_VOIDCALL_REG:
 				// use JALR x1, 0(src1)
@@ -1498,6 +1506,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
 			case OP_ICONST:
+			case OP_I8CONST:
 				code = mono_riscv_emit_imm(code, ins->dreg, ins->inst_c0);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
@@ -1516,6 +1525,17 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				riscv_jalr(code, RISCV_RA, ins->sreg1, ins->inst_imm);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
+			case OP_GC_SAFE_POINT:{
+				guint8 *src_inst_pointer [1];
+
+				riscv_ld (code, RISCV_T1, ins->sreg1, 0);
+				/* Call it if it is non-null */
+				src_inst_pointer [0] = code;
+				riscv_beq (code, RISCV_ZERO, RISCV_T1, 0);
+				code = mono_riscv_emit_call (cfg, code, MONO_PATCH_INFO_JIT_ICALL_ID, GUINT_TO_POINTER (MONO_JIT_ICALL_mono_threads_state_poll));
+				mono_riscv_patch (src_inst_pointer [0], code, MONO_R_RISCV_BEQ);
+				break;
+			}
 			default:
 				printf ("unable to output following IR:"); mono_print_ins (ins);
 				NOT_IMPLEMENTED;
