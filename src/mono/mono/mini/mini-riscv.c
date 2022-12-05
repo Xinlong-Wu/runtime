@@ -335,7 +335,7 @@ riscv_patch_full (MonoCompile *cfg, guint8 *code, guint8 *target, int relocation
 			gint32 rs1 = RISCV_BITS (inst, 15, 19);
 			gint32 rs2 = RISCV_BITS (inst, 20, 24);
 			riscv_beq (code, rs1, rs2, offset);
-			g_print("BEQ x%d, x%d, 0x%x <0x%lx> ", rs1, rs2, (gint32)offset & 0xffe, offset);
+			g_print("BEQ %s, %s, 0x%x <0x%lx> ", mono_arch_regname(rs1), mono_arch_regname(rs2), (gint32)offset & 0xffe, offset);
 			MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
 			break;
 		}
