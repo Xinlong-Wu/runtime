@@ -255,6 +255,8 @@ DECL_OFFSET(MonoLMF, eip)
 DECL_OFFSET(MonoLMF, gregs)
 DECL_OFFSET(MonoLMF, fregs)
 #elif defined(TARGET_RISCV)
+DECL_OFFSET(MonoLMF, gregs)
+DECL_OFFSET(MonoLMF, pc)
 DECL_OFFSET(MonoContext, gregs)
 DECL_OFFSET(MonoContext, fregs)
 #endif
