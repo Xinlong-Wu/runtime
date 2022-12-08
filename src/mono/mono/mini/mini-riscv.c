@@ -1322,7 +1322,7 @@ mono_riscv_emit_fload (guint8 *code, int rd, int rs1, gint32 imm)
 	return code;
 }
 
-// May clobber t1. Uses at most 16 bytes on RV32I and 24 bytes on RV64I.
+// May clobber t6. Uses at most 16 bytes on RV32I and 24 bytes on RV64I.
 guint8 *
 mono_riscv_emit_store (guint8 *code, int rs2, int rs1, gint32 imm)
 {
@@ -1333,12 +1333,34 @@ mono_riscv_emit_store (guint8 *code, int rs2, int rs1, gint32 imm)
 		riscv_sw (code, rs2, rs1, imm);
 #endif
 	} else {
-		code = mono_riscv_emit_imm (code, RISCV_T1, imm);
-		riscv_add (code, RISCV_T1, rs1, RISCV_T1);
+		code = mono_riscv_emit_imm (code, RISCV_T6, imm);
+		riscv_add (code, RISCV_T6, rs1, RISCV_T6);
 #ifdef TARGET_RISCV64
-		riscv_sd (code, rs2, RISCV_T1, 0);
+		riscv_sd (code, rs2, RISCV_T6, 0);
 #else
-		riscv_sw (code, rs2, RISCV_T1, 0);
+		riscv_sw (code, rs2, RISCV_T6, 0);
+#endif
+	}
+
+	return code;
+}
+
+// May clobber t6. Uses at most 16 bytes on RV32I and 24 bytes on RV64I.
+guint8 *
+mono_riscv_emit_fstore(guint8 *code, int rs2, int rs1, gint32 imm){
+	if (RISCV_VALID_S_IMM (imm)) {
+#ifdef TARGET_RISCV64
+		riscv_fsd (code, rs2, rs1, imm);
+#else
+		riscv_fsw (code, rs2, rs1, imm);
+#endif
+	} else {
+		code = mono_riscv_emit_imm (code, RISCV_T6, imm);
+		riscv_add (code, RISCV_T6, rs1, RISCV_T6);
+#ifdef TARGET_RISCV64
+		riscv_fsd (code, rs2, RISCV_T6, 0);
+#else
+		riscv_fsw (code, rs2, RISCV_T6, 0);
 #endif
 	}
 
@@ -1377,7 +1399,7 @@ emit_store_regset (guint8 *code, guint64 regs, int basereg, int offset){
  * emit_setup_lmf:
  *
  *   Emit code to initialize an LMF structure at LMF_OFFSET.
- * Clobbers ip0/ip1.
+ * Clobbers T6.
  */
 static guint8*
 emit_setup_lmf (MonoCompile *cfg, guint8 *code, gint32 lmf_offset, int cfa_offset){
@@ -1390,8 +1412,8 @@ emit_setup_lmf (MonoCompile *cfg, guint8 *code, gint32 lmf_offset, int cfa_offse
 	 */
 
 	/* pc */
-	code = mono_riscv_emit_imm (code, RISCV_T0, (gsize)code);
-	code = mono_riscv_emit_store (code, RISCV_T0, RISCV_FP, -(lmf_offset + MONO_STRUCT_OFFSET (MonoLMF, pc)));
+	code = mono_riscv_emit_imm (code, RISCV_T6, (gsize)code);
+	code = mono_riscv_emit_store (code, RISCV_T6, RISCV_FP, -(lmf_offset + MONO_STRUCT_OFFSET (MonoLMF, pc)));
 	/* gregs + fp + sp */
 	// code = emit_store_regset_cfa (cfg, code, (MONO_ARCH_CALLEE_SAVED_REGS | (1 << RISCV_FP) | (1 << RISCV_SP)), RISCV_FP, lmf_offset + MONO_STRUCT_OFFSET (MonoLMF, gregs), cfa_offset, (1 << RISCV_FP) | (1 << RISCV_SP));
 	code = emit_store_regset (code, (MONO_ARCH_CALLEE_SAVED_REGS | (1 << RISCV_FP) | (1 << RISCV_SP)), RISCV_FP, lmf_offset + MONO_STRUCT_OFFSET (MonoLMF, gregs));
