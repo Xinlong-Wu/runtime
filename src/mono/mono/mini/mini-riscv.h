@@ -267,6 +267,9 @@ mono_riscv_emit_fload (guint8 *code, int rd, int rs1, gint32 imm);
 __attribute__ ((warn_unused_result)) guint8 *
 mono_riscv_emit_store (guint8 *code, int rs1, int rs2, gint32 imm);
 
+__attribute__ ((warn_unused_result)) guint8 *
+mono_riscv_emit_fstore (guint8 *code, int rd, int rs1, gint32 imm);
+
 void
 mono_riscv_patch (guint8 *code, guint8 *target, int relocation);
 
