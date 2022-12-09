@@ -211,7 +211,20 @@ mono_arch_create_sdb_trampoline (gboolean single_step, MonoTrampInfo **info, gbo
 /*
  * mono_arch_get_interp_to_native_trampoline:
  *
- *   See tramp-amd64.c for documentation.
+ * This function generate a native code snippets
+ * whitch set Interp Context into Native Context,
+ * and call a native function. 
+ * When native function returns, we need set 
+ * Native Context back to Interp Context for
+ * futher Interp Operations.
+ * 
+ * Call of this native code snippets should be:
+ * 		entry_func ((gpointer) addr, args); 
+ * Where 
+ * `addr` is function entry address we need 
+ * to call in native code snippets.
+ * `args` is CallContext pointer.
+ * 
  */
 gpointer
 mono_arch_get_interp_to_native_trampoline (MonoTrampInfo **info)
@@ -277,7 +290,7 @@ mono_arch_get_interp_to_native_trampoline (MonoTrampInfo **info)
 
 	/* save target address onto stack */
 	stackpointer -= sizeof (target_mgreg_t);
-	// off_targetaddr = stackpointer;
+	off_targetaddr = stackpointer;
 	code = mono_riscv_emit_store (code, RISCV_A0, RISCV_SP, stackpointer);
 	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
 
@@ -327,8 +340,31 @@ mono_arch_get_interp_to_native_trampoline (MonoTrampInfo **info)
 
 	/* set all floating registers to CallContext  */
 	for (i = 0; i < RISCV_N_FAREGS; i++){
-		int tmp = MONO_STRUCT_OFFSET (CallContext, fregs) + (RISCV_FA0 + i) * sizeof (double);
 		code = mono_riscv_emit_fload (code, RISCV_FA0 + i, RISCV_T0, MONO_STRUCT_OFFSET (CallContext, fregs) + (RISCV_FA0 + i) * sizeof (double));
+		MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+	}
+
+	/* load target addr */
+	code = mono_riscv_emit_load (code, RISCV_T0, RISCV_FP, off_targetaddr - framesize);
+	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+
+	/* call into native function */
+	riscv_jalr (code, RISCV_RA, RISCV_T0, 0);
+	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+
+	/* Load CallContext* into T0 */
+	code = mono_riscv_emit_load(code, RISCV_T0, RISCV_FP, off_methodargs - framesize)
+	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+
+	/* set all general registers from CallContext */
+	for (i = 0; i < RISCV_N_GAREGS; i++){
+		code = mono_riscv_emit_store (code, RISCV_A0 + i, RISCV_T0, MONO_STRUCT_OFFSET (CallContext, gregs) + (RISCV_A0 + i) * sizeof (target_mgreg_t));
+		MONO_ARCH_DUMP_CODE_DEBUG(code,1);
+	}
+
+	/* set all floating registers to CallContext  */
+	for (i = 0; i < RISCV_N_FAREGS; i++){
+		code = mono_riscv_emit_fstore (code, RISCV_FA0 + i, RISCV_T0, MONO_STRUCT_OFFSET (CallContext, fregs) + (RISCV_FA0 + i) * sizeof (double));
 		MONO_ARCH_DUMP_CODE_DEBUG(code,1);
 	}
 
@@ -373,7 +409,7 @@ mono_arch_get_interp_to_native_trampoline (MonoTrampInfo **info)
 #else
 	g_assert_not_reached ();
 	return NULL;
-#endif /* DISABLE_INTERPRETER */
+#endif /* DISABLE_JIT */
 }
 
 gpointer
