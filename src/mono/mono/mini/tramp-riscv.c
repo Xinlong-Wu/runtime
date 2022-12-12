@@ -353,7 +353,7 @@ mono_arch_get_interp_to_native_trampoline (MonoTrampInfo **info)
 	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
 
 	/* Load CallContext* into T0 */
-	code = mono_riscv_emit_load(code, RISCV_T0, RISCV_FP, off_methodargs - framesize)
+	code = mono_riscv_emit_load(code, RISCV_T0, RISCV_FP, off_methodargs - framesize);
 	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
 
 	/* set all general registers from CallContext */
