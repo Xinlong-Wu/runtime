@@ -1141,14 +1141,16 @@ mono_arch_lowering_pass (MonoCompile *cfg, MonoBasicBlock *bb)
 loop_start:
 		switch (ins->opcode){
 			case OP_IL_SEQ_POINT:
-			case OP_VOIDCALL:
 			case OP_I8CONST:
 			case OP_ICONST:
 			case OP_GC_SAFE_POINT:
+			case OP_VOIDCALL:
+			case OP_CALL:
 
 			/* skip custom OP code*/
 			case OP_RISCV_BEQ:
 				break;
+
 			case OP_VOIDCALL_REG:
 				// use JALR x1, 0(src1)
 				ins->inst_imm = 0;
@@ -1175,6 +1177,7 @@ loop_start:
 			}
 			// Inst L{B|H|W|D} use I-type Imm
 			case OP_LOAD_MEMBASE:
+			case OP_LOADU4_MEMBASE:
 			// Inst ADDI use I-type Imm
 			case OP_ADD_IMM:
 				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_imm))){
@@ -1190,14 +1193,15 @@ loop_start:
 				ins->inst_imm = 0;
 
 				goto loop_start;
-			case OP_LCOMPARE_IMM:{
+			case OP_LCOMPARE_IMM:
+			case OP_ICOMPARE_IMM:{
 				if (ins->next){
-					if(ins->next->opcode == OP_LBEQ){
+					if(ins->next->opcode == OP_LBEQ || ins->next->opcode == OP_IBEQ){
 						ins->next->opcode = OP_RISCV_BEQ;
 						ins->next->sreg2 = ins->sreg1;
 						NULLIFY_INS (ins);
 					}
-					else if(ins->next->opcode == OP_LBNE_UN){
+					else if(ins->next->opcode == OP_LBNE_UN || ins->next->opcode == OP_IBNE_UN){
 						ins->next->opcode = OP_RISCV_BNE;
 						ins->next->sreg2 = ins->sreg1;
 						NULLIFY_INS (ins);
