@@ -528,8 +528,7 @@ get_call_info(MonoMemPool *mp, MonoMethodSignature *sig){
 	// other general Arguments
 	guint32 paramStart = 0;
 	for(guint32 i = paramStart; i < sig->param_count; ++i){
-		ArgInfo *ainfo = &cinfo->args [sig->hasthis + i];
-		MonoType *ptype;
+		ArgInfo *ainfo = cinfo->args + sig->hasthis + i;
 
 		// process the variable parameter sig->sentinelpos mark the first VARARG
 		if ((sig->call_convention == MONO_CALL_VARARG) && (i == sig->sentinelpos)) {
@@ -839,8 +838,10 @@ mono_arch_emit_call (MonoCompile *cfg, MonoCallInst *call)
 	/* Emit the inst of return by return type */
 	switch (cinfo->ret.storage){
 		default:
+			g_print("unable process storage type 0x%x\n",cinfo->ret.storage); 
 			NOT_IMPLEMENTED;
 			break;
+		
 		case ArgNone:
 			break;
 	}
