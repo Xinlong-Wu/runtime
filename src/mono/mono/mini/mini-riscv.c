@@ -838,11 +838,11 @@ mono_arch_emit_call (MonoCompile *cfg, MonoCallInst *call)
 	/* Emit the inst of return by return type */
 	switch (cinfo->ret.storage){
 		default:
+			break;
+		case ArgVtypeByRef:
+		case ArgVtypeInIReg:
 			g_print("unable process storage type 0x%x\n",cinfo->ret.storage); 
 			NOT_IMPLEMENTED;
-			break;
-		
-		case ArgNone:
 			break;
 	}
 
@@ -1145,6 +1145,9 @@ loop_start:
 			case OP_I8CONST:
 			case OP_ICONST:
 			case OP_GC_SAFE_POINT:
+
+			/* skip custom OP code*/
+			case OP_RISCV_BEQ:
 				break;
 			case OP_VOIDCALL_REG:
 				// use JALR x1, 0(src1)
@@ -1187,6 +1190,31 @@ loop_start:
 				ins->inst_imm = 0;
 
 				goto loop_start;
+			case OP_LCOMPARE_IMM:{
+				if (ins->next){
+					if(ins->next->opcode == OP_LBEQ){
+						ins->next->opcode = OP_RISCV_BEQ;
+						ins->next->sreg2 = ins->sreg1;
+						NULLIFY_INS (ins);
+					}
+					else if(ins->next->opcode == OP_LBNE_UN){
+						ins->next->opcode = OP_RISCV_BNE;
+						ins->next->sreg2 = ins->sreg1;
+						NULLIFY_INS (ins);
+					}
+					else {
+						NOT_IMPLEMENTED;
+					}
+
+					if(ins->inst_imm == 0){
+						ins->next->sreg1 = RISCV_ZERO;
+					}
+					else{
+						NOT_IMPLEMENTED;
+					}
+				}
+				break;
+			}
 			case OP_NOP:
 				ins->inst_imm = 0;
 				ins->dreg = 0;
