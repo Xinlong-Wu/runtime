@@ -204,8 +204,8 @@ typedef struct {
 } CallContext;
 
 typedef enum {
-	ArgInIReg = 0x00,
-	ArgOnStack = 0x10,
+	ArgInIReg = 0x01,
+	ArgOnStack,
 	ArgInFReg,
 	ArgStructByVal,
 	ArgStructByAddr,
