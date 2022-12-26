@@ -50,6 +50,8 @@ i8const: dest:i len:32
 add_imm: dest:i src1:i len:32
 long_add_imm: dest:i src1:i len:32
 
+shr_un_imm: dest:i src1:i len:32
+
 riscv_beq: src1:i src2:i len:32
 
 gc_safe_point: src1:i len:32 clob:c
