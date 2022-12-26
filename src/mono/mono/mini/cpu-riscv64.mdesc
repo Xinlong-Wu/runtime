@@ -33,6 +33,7 @@ il_seq_point: len:0
 
 rethrow: src1:i len:20
 
+br: len:32
 call: dest:a len:32 clob:c
 voidcall: len:32 clob:c
 voidcall_reg: src1:i len:32 clob:c
