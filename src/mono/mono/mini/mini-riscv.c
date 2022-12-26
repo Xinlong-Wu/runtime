@@ -1158,7 +1158,8 @@ loop_start:
 				break;	
 			// RISC-V dosn't support store Imm to Memory directly
 			// store Imm into Reg firstly.
-			case OP_STORE_MEMBASE_IMM:{
+			case OP_STORE_MEMBASE_IMM:
+			case OP_STOREI4_MEMBASE_IMM:{
 				// generate a new Inst to store the Imm to the Reg
 				NEW_INS (cfg, ins, temp, OP_ICONST);
 				temp->inst_c0 = ins->inst_imm;
@@ -1169,7 +1170,8 @@ loop_start:
 				goto loop_start; /* make it handle the possibly big ins->inst_offset */
 			}
 			// Inst S{B|H|W|D} use I-type Imm
-			case OP_STORE_MEMBASE_REG:{
+			case OP_STORE_MEMBASE_REG:
+			case OP_STOREI4_MEMBASE_REG:{
 				// check if offset is valid I-type Imm
 				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_offset)))
 					NOT_IMPLEMENTED;
@@ -1180,11 +1182,13 @@ loop_start:
 			case OP_LOADU4_MEMBASE:
 			// Inst ADDI use I-type Imm
 			case OP_ADD_IMM:
+			case OP_LADD_IMM:
 				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_imm))){
 					NEW_INS (cfg, ins, temp, OP_ICONST);
 					temp->inst_c0 = (ins->inst_imm >> 12) << 12;
 					temp->dreg = mono_alloc_ireg (cfg);
 					ins->sreg1 = temp->dreg;
+					ins->inst_imm = 0;
 				}
 				break;
 			case OP_MOVE:
