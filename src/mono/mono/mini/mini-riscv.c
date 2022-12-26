@@ -1146,6 +1146,10 @@ loop_start:
 			case OP_GC_SAFE_POINT:
 			case OP_VOIDCALL:
 			case OP_CALL:
+			case OP_RETHROW:
+			
+			/* skip dummy IL */
+			case OP_NOT_REACHED:
 
 			/* skip custom OP code*/
 			case OP_RISCV_BEQ:
