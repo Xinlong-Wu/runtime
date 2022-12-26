@@ -1191,8 +1191,7 @@ loop_start:
 				// mv ra, a1 -> addi ra, a1, 0
 				ins->opcode = OP_ADD_IMM;
 				ins->inst_imm = 0;
-
-				goto loop_start;
+				break;
 			case OP_LCOMPARE_IMM:
 			case OP_ICOMPARE_IMM:{
 				if (ins->next){
