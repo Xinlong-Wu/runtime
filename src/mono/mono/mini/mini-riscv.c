@@ -1141,14 +1141,15 @@ mono_arch_lowering_pass (MonoCompile *cfg, MonoBasicBlock *bb)
 loop_start:
 		switch (ins->opcode){
 			case OP_IL_SEQ_POINT:
-			case OP_I8CONST:
-			case OP_ICONST:
 			case OP_GC_SAFE_POINT:
 			case OP_BR:
 			case OP_CALL:
 			case OP_VOIDCALL:
 			case OP_RETHROW:
 			case OP_GET_EX_OBJ:
+			case OP_I8CONST:
+			case OP_ICONST:
+			case OP_SHR_UN_IMM:
 
 			/* Atomic */
 			case OP_MEMORY_BARRIER:
