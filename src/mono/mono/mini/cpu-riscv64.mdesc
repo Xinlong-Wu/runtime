@@ -29,9 +29,11 @@
 
 nop: len:32
 not_reached: len:0
+not_null: src1:i len:0
 il_seq_point: len:0
 
-rethrow: src1:i len:20
+rethrow: src1:i len:32
+get_ex_obj: dest:i len:32
 
 br: len:32
 call: dest:a len:32 clob:c

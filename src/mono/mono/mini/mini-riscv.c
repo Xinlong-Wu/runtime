@@ -1148,9 +1148,15 @@ loop_start:
 			case OP_CALL:
 			case OP_VOIDCALL:
 			case OP_RETHROW:
+			case OP_GET_EX_OBJ:
+
+			/* Atomic */
+			case OP_MEMORY_BARRIER:
 			
 			/* skip dummy IL */
 			case OP_NOT_REACHED:
+			case OP_NOT_NULL:
+			case OP_DUMMY_USE:
 
 			/* skip custom OP code*/
 			case OP_RISCV_BEQ:
