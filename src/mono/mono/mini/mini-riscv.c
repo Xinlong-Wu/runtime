@@ -1144,8 +1144,9 @@ loop_start:
 			case OP_I8CONST:
 			case OP_ICONST:
 			case OP_GC_SAFE_POINT:
-			case OP_VOIDCALL:
+			case OP_BR:
 			case OP_CALL:
+			case OP_VOIDCALL:
 			case OP_RETHROW:
 			
 			/* skip dummy IL */
