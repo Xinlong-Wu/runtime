@@ -29,8 +29,8 @@
 nop: len:32
 il_seq_point: len:0
 
+call: dest:a len:32 clob:c
 voidcall: len:32 clob:c
-call: len:32 clob:c
 voidcall_reg: src1:i len:32 clob:c
 
 store_membase_reg: dest:b src1:i len:32
