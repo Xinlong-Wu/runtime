@@ -26,8 +26,12 @@
 #
 #     a    a0
 #     c    all caller-saved registers
+
 nop: len:32
+not_reached: len:0
 il_seq_point: len:0
+
+rethrow: src1:i len:20
 
 call: dest:a len:32 clob:c
 voidcall: len:32 clob:c
@@ -41,6 +45,7 @@ loadu4_membase: dest:i src1:b len:32
 iconst: dest:i len:32
 i8const: dest:i len:32
 add_imm: dest:i src1:i len:32
+long_add_imm: dest:i src1:i len:32
 
 riscv_beq: src1:i src2:i len:32
 
