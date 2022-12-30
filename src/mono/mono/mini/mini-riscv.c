@@ -1183,7 +1183,8 @@ loop_start:
 			}
 			// Inst S{B|H|W|D} use I-type Imm
 			case OP_STORE_MEMBASE_REG:
-			case OP_STOREI4_MEMBASE_REG:{
+			case OP_STOREI4_MEMBASE_REG:
+			case OP_STOREI1_MEMBASE_IMM:{
 				// check if offset is valid I-type Imm
 				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_offset)))
 					NOT_IMPLEMENTED;
@@ -1192,6 +1193,14 @@ loop_start:
 			// Inst L{B|H|W|D} use I-type Imm
 			case OP_LOAD_MEMBASE:
 			case OP_LOADU4_MEMBASE:
+				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_imm))){
+					NEW_INS (cfg, ins, temp, OP_ICONST);
+					temp->inst_c0 = (ins->inst_imm >> 12) << 12;
+					temp->dreg = mono_alloc_ireg (cfg);
+					ins->sreg1 = temp->dreg;
+					ins->inst_imm = 0;
+				}
+				break;
 			// Inst ADDI use I-type Imm
 			case OP_ADD_IMM:
 			case OP_LADD_IMM:
@@ -1199,8 +1208,9 @@ loop_start:
 					NEW_INS (cfg, ins, temp, OP_ICONST);
 					temp->inst_c0 = (ins->inst_imm >> 12) << 12;
 					temp->dreg = mono_alloc_ireg (cfg);
-					ins->sreg1 = temp->dreg;
+					ins->sreg2 = temp->dreg;
 					ins->inst_imm = 0;
+					ins->opcode = OP_LADD;
 				}
 				break;
 			case OP_MOVE:
@@ -1234,6 +1244,16 @@ loop_start:
 				}
 				break;
 			}
+			case OP_LAND_IMM:
+				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_imm))){
+					NEW_INS (cfg, ins, temp, OP_ICONST);
+					temp->inst_c0 = (ins->inst_imm >> 12) << 12;
+					temp->dreg = mono_alloc_ireg (cfg);
+					ins->sreg2 = temp->dreg;
+					ins->inst_imm = 0;
+					ins->opcode = OP_LAND;
+				}
+				break;
 			case OP_NOP:
 				ins->inst_imm = 0;
 				ins->dreg = 0;
