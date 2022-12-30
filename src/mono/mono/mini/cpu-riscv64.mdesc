@@ -60,5 +60,6 @@ long_and_imm: dest:i src1:i len:32
 long_and: dest:i src1:i src2:i len:32
 
 riscv_beq: src1:i src2:i len:32
+riscv_bne: src1:i src2:i len:32
 
 gc_safe_point: src1:i len:32 clob:c
