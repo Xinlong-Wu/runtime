@@ -52,6 +52,7 @@ memory_barrier: len:32 clob:a
 
 iconst: dest:i len:32
 i8const: dest:i len:32
+addcc: dest:i src1:i src2:i len:32
 add_imm: dest:i src1:i len:32
 long_add_imm: dest:i src1:i len:32
 long_add: dest:i src1:i src2:i len:32

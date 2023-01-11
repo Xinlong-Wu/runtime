@@ -1212,7 +1212,7 @@ loop_start:
 					temp->dreg = mono_alloc_ireg (cfg);
 					ins->sreg2 = temp->dreg;
 					ins->inst_imm = 0;
-					ins->opcode = OP_LADD;
+					ins->opcode = OP_ADDCC;
 				}
 				break;
 			case OP_MOVE:
@@ -1766,7 +1766,12 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				code = mono_riscv_emit_imm(code, ins->dreg, ins->inst_c0);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
+			case OP_ADDCC:
+				riscv_add(code, ins->dreg, ins->sreg1, ins->sreg2);
+				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+				break;
 			case OP_ADD_IMM:
+			case OP_LADD_IMM:
 				riscv_addi(code, ins->dreg, ins->sreg1, ins->inst_imm);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
