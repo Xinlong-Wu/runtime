@@ -1146,7 +1146,6 @@ loop_start:
 			case OP_BR:
 			case OP_CALL:
 			case OP_VOIDCALL:
-			case OP_RETHROW:
 			case OP_GET_EX_OBJ:
 			case OP_I8CONST:
 			case OP_ICONST:
@@ -1169,7 +1168,18 @@ loop_start:
 			case OP_VOIDCALL_REG:
 				// use JALR x1, 0(src1)
 				ins->dreg = RISCV_X1;
-				break;	
+				break;
+			
+			/* Throw */
+			case OP_RETHROW:
+				if (ins->sreg1 != RISCV_A0){
+					NEW_INS (cfg, ins, temp, OP_ADD_IMM);
+					temp->inst_imm = 0;
+					temp->dreg = RISCV_A0;
+					temp->sreg1 = ins->sreg1;
+					ins->sreg1 = RISCV_A0;
+				}
+				break;
 			// RISC-V dosn't support store Imm to Memory directly
 			// store Imm into Reg firstly.
 			case OP_STORE_MEMBASE_IMM:
@@ -1745,6 +1755,8 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 		g_assert ((ins->dreg >= -1) && (ins->dreg < 32));
 
 		switch (ins->opcode) {
+			case OP_NOT_REACHED:
+				break;
 			case OP_IL_SEQ_POINT:
 				mono_add_seq_point (cfg, bb, ins, code - cfg->native_code);
 				break;
@@ -1809,6 +1821,13 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				mono_riscv_patch (src_inst_pointer [0], code, MONO_R_RISCV_BEQ);
 				break;
 			}
+
+			/* Throw */
+			case OP_RETHROW:
+				code = mono_riscv_emit_call (cfg, code, MONO_PATCH_INFO_JIT_ICALL_ID,
+							  GUINT_TO_POINTER (MONO_JIT_ICALL_mono_arch_rethrow_exception));
+				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+				break;
 			default:
 				printf ("unable to output following IR:"); mono_print_ins (ins);
 				NOT_IMPLEMENTED;
