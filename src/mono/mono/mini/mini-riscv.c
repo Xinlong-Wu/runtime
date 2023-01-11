@@ -1168,7 +1168,6 @@ loop_start:
 
 			case OP_VOIDCALL_REG:
 				// use JALR x1, 0(src1)
-				ins->inst_imm = 0;
 				ins->dreg = RISCV_X1;
 				break;	
 			// RISC-V dosn't support store Imm to Memory directly
@@ -1516,6 +1515,29 @@ emit_move_args (MonoCompile *cfg, guint8 *code){
 	return code;
 }
 
+static guint8*
+emit_move_return_value (MonoCompile *cfg, guint8 * code, MonoInst *ins){
+	CallInfo *cinfo;
+	MonoCallInst *call;
+
+	call = (MonoCallInst*)ins;
+	cinfo = call->call_info;
+	g_assert (cinfo);
+	switch (cinfo->ret.storage){
+		case ArgNone:
+			break;
+		case ArgInIReg:
+			if (call->inst.dreg != cinfo->ret.reg){
+				NOT_IMPLEMENTED;
+			}
+			break;
+		default:
+			NOT_IMPLEMENTED;
+			break;
+	}
+	return code;
+}
+
 /*
  * Stack frame layout:
  *  |--------------------------| -- <-- sp + stack_size (FP)
@@ -1730,7 +1752,8 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				code = mono_riscv_emit_nop(code);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
-			case OP_LOAD_MEMBASE: 
+			case OP_LOAD_MEMBASE:
+			case OP_LOADU4_MEMBASE:
 				code = mono_riscv_emit_load(code, ins->dreg, ins->sreg1, ins->inst_offset);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
@@ -1747,19 +1770,27 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				riscv_addi(code, ins->dreg, ins->sreg1, ins->inst_imm);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
-			case OP_VOIDCALL:
+
+			/* Calls */
+			case OP_CALL:
+			case OP_VOIDCALL:{
 				call = (MonoCallInst*)ins;
-				// mono_call_add_patch_info (cfg, call, code - cfg->native_code);
 				const MonoJumpInfoTarget patch = mono_call_to_patch (call);
 				code = mono_riscv_emit_call (cfg, code, patch.type, patch.target);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+				code = emit_move_return_value (cfg, code, ins);
 				break;
+			}
 			case OP_VOIDCALL_REG:
-				riscv_jalr(code, RISCV_RA, ins->sreg1, ins->inst_imm);
+				// use JALR x1, 0(src1)
+				riscv_jalr(code, RISCV_RA, ins->sreg1, 0);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
+
+			/* Branch */
 			case OP_RISCV_BEQ:
-				riscv_beq(code, ins->sreg1, ins->sreg2, ins->inst_imm);
+				mono_add_patch_info_rel (cfg, (code - cfg->native_code), MONO_PATCH_INFO_BB, ins->inst_true_bb, MONO_R_RISCV_BEQ);
+				riscv_beq(code, ins->sreg1, ins->sreg2, 0);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
 			case OP_GC_SAFE_POINT:{
