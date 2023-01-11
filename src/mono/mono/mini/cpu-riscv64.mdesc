@@ -32,6 +32,7 @@ not_reached: len:0
 not_null: src1:i len:0
 dummy_use: src1:i len:0
 il_seq_point: len:0
+seq_point: len:0
 
 rethrow: src1:i len:32
 get_ex_obj: dest:i len:32

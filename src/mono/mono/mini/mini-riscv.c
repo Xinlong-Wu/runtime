@@ -1141,6 +1141,7 @@ mono_arch_lowering_pass (MonoCompile *cfg, MonoBasicBlock *bb)
 loop_start:
 		switch (ins->opcode){
 			case OP_IL_SEQ_POINT:
+			case OP_SEQ_POINT:
 			case OP_GC_SAFE_POINT:
 			case OP_BR:
 			case OP_CALL:
@@ -1158,6 +1159,7 @@ loop_start:
 			case OP_NOT_REACHED:
 			case OP_NOT_NULL:
 			case OP_DUMMY_USE:
+			case OP_NOP:
 
 			/* skip custom OP code*/
 			case OP_RISCV_BEQ:
@@ -1255,12 +1257,6 @@ loop_start:
 					ins->opcode = OP_LAND;
 				}
 				break;
-			case OP_NOP:
-				ins->inst_imm = 0;
-				ins->dreg = 0;
-				ins->sreg1 = 0;
-				ins->opcode = OP_ADD_IMM;
-				break;
 			default:
 				printf ("unable to lowering following IR:"); mono_print_ins (ins);
 				NOT_IMPLEMENTED;
@@ -1342,6 +1338,15 @@ mono_riscv_emit_imm (guint8 *code, int rd, gsize imm)
 		riscv_ori (code, rd, rd, RISCV_BITS (imm, 0, 12));
 #endif
 
+	return code;
+}
+
+// Uses at most 16 bytes on RV32I and 24 bytes on RV64I.
+guint8 *
+mono_riscv_emit_nop (guint8 *code){
+	// if(riscv_stdext_c){
+	// }
+	riscv_addi(code, RISCV_ZERO, RISCV_ZERO, 0);
 	return code;
 }
 
@@ -1721,6 +1726,10 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_IL_SEQ_POINT:
 				mono_add_seq_point (cfg, bb, ins, code - cfg->native_code);
 				break;
+			case OP_NOP:
+				code = mono_riscv_emit_nop(code);
+				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+				break;
 			case OP_LOAD_MEMBASE: 
 				code = mono_riscv_emit_load(code, ins->dreg, ins->sreg1, ins->inst_offset);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
@@ -1747,6 +1756,10 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				break;
 			case OP_VOIDCALL_REG:
 				riscv_jalr(code, RISCV_RA, ins->sreg1, ins->inst_imm);
+				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+				break;
+			case OP_RISCV_BEQ:
+				riscv_beq(code, ins->sreg1, ins->sreg2, ins->inst_imm);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
 			case OP_GC_SAFE_POINT:{
