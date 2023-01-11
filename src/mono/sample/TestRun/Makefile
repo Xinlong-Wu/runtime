@@ -4,7 +4,7 @@ DOTNET_Q_ARGS=--nologo -v:q -consoleloggerparameters:NoSummary
 
 MONO_CONFIG?=Debug
 MONO_ARCH=riscv64
-TARGET_OS?=$(shell . $(TOP)eng/native/init-os-and-arch.sh && echo $${os} | tr "[:upper:]" "[:lower:]")
+TARGET_OS=Linux
 AOT?=false
 
 #NET_TRACE_PATH=<path-to-trace-of-sample>
@@ -12,26 +12,24 @@ AOT?=false
 #MIBC_PROFILE_PATH=<path-to-mibc-for-sample>
 
 MONO_ENV_DEBUG_OPTIONS = "-v -v -v -v --compile-all --debug --debugger-agent=transport=dt_socket,address=127.0.0.1:1235,server=y,suspend=y,loglevel=10"
-MONO_ENV_RUN_OPTIONS = "--compile-all"
+MONO_ENV_RUN_OPTIONS = "-v -v -v -v --interp"
 
-publish:
-	$(DOTNET) publish \
-	-c $(MONO_CONFIG) \
-	-r $(TARGET_OS)-$(MONO_ARCH) \
-	/p:RunAOTCompilation=$(AOT) \
-	'/p:NetTracePath="$(NET_TRACE_PATH)"' \
-	'/p:PgoBinaryPath="$(PGO_BINARY_PATH)"' \
-	'/p:MibcProfilePath="$(MIBC_PROFILE_PATH)"'
+build: TestRun.cs
+	mono-csc TestRun.cs --debug
 
-run: publish
+run-baseline: build
+	COMPlus_DebugWriteToStdErr=1 \
+	$(TOP)artifacts/bin/testhost/net8.0-$(TARGET_OS)-Debug-x64/dotnet TestRun.exe
+
+run: build
 	COMPlus_DebugWriteToStdErr=1 \
 	MONO_ENV_OPTIONS=$(MONO_ENV_RUN_OPTIONS) \
-	$(TOP)artifacts/bin/TestRun/$(MONO_ARCH)/$(MONO_CONFIG)/$(TARGET_OS)-$(MONO_ARCH)/publish/TestRun
+	qemu-riscv64-static -L $(TOP)/.tools/rootfs/riscv64/ $(TOP)artifacts/bin/testhost/net8.0-$(TARGET_OS)-Debug-$(MONO_ARCH)/dotnet TestRun.exe
 
-debug: publish
+debug: build
 	COMPlus_DebugWriteToStdErr=1 \
 	MONO_ENV_OPTIONS=$(MONO_ENV_DEBUG_OPTIONS) \
-	$(TOP)artifacts/bin/TestRun/$(MONO_ARCH)/$(MONO_CONFIG)/$(TARGET_OS)-$(MONO_ARCH)/publish/TestRun
+	qemu-riscv64-static -L $(TOP)/.tools/rootfs/riscv64/ $(TOP)artifacts/bin/testhost/net8.0-$(TARGET_OS)-Debug-$(MONO_ARCH)/dotnet TestRun.exe
 
 clean:
-	rm -rf $(TOP)artifacts/bin/TestRun/
+	rm -f *.exe *.exe.mdb
