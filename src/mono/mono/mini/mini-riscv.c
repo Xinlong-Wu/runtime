@@ -1183,20 +1183,34 @@ loop_start:
 			// RISC-V dosn't support store Imm to Memory directly
 			// store Imm into Reg firstly.
 			case OP_STORE_MEMBASE_IMM:
+			case OP_STOREI1_MEMBASE_IMM:
 			case OP_STOREI4_MEMBASE_IMM:{
 				// generate a new Inst to store the Imm to the Reg
 				NEW_INS (cfg, ins, temp, OP_ICONST);
 				temp->inst_c0 = ins->inst_imm;
 				temp->dreg = mono_alloc_ireg (cfg);
 				
-				ins->opcode = OP_STORE_MEMBASE_REG;
 				ins->sreg1 = temp->dreg;
+				switch (ins->opcode){
+					case OP_STORE_MEMBASE_IMM:
+						ins->opcode = OP_STORE_MEMBASE_REG;
+						break;
+					case OP_STOREI1_MEMBASE_IMM:
+						ins->opcode = OP_STOREI1_MEMBASE_REG;
+						break;
+					case OP_STOREI4_MEMBASE_IMM:
+						ins->opcode = OP_STOREI4_MEMBASE_REG;
+						break;
+					default:
+						g_assert_not_reached();
+						break;
+				}
 				goto loop_start; /* make it handle the possibly big ins->inst_offset */
 			}
 			// Inst S{B|H|W|D} use I-type Imm
 			case OP_STORE_MEMBASE_REG:
-			case OP_STOREI4_MEMBASE_REG:
-			case OP_STOREI1_MEMBASE_IMM:{
+			case OP_STOREI1_MEMBASE_REG:
+			case OP_STOREI4_MEMBASE_REG:{
 				// check if offset is valid I-type Imm
 				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_offset)))
 					NOT_IMPLEMENTED;
@@ -1263,7 +1277,7 @@ loop_start:
 					temp->dreg = mono_alloc_ireg (cfg);
 					ins->sreg2 = temp->dreg;
 					ins->inst_imm = 0;
-					ins->opcode = OP_LAND;
+					ins->opcode = OP_IAND;
 				}
 				break;
 			default:
@@ -1406,25 +1420,44 @@ mono_riscv_emit_fload (guint8 *code, int rd, int rs1, gint32 imm)
 }
 
 // May clobber t6. Uses at most 16 bytes on RV32I and 24 bytes on RV64I.
+// length == 0 means dont care
 guint8 *
-mono_riscv_emit_store (guint8 *code, int rs2, int rs1, gint32 imm)
+mono_riscv_emit_store (guint8 *code, int rs2, int rs1, gint32 imm, int length)
 {
-	if (RISCV_VALID_S_IMM (imm)) {
+	if (!RISCV_VALID_S_IMM (imm)){
+		code = mono_riscv_emit_imm (code, RISCV_T6, imm);
+		riscv_add (code, RISCV_T6, rs1, RISCV_T6);
+		rs1 = RISCV_T6;
+		imm = 0;
+	}
+
+	switch (length)
+	{
+	case 0:
 #ifdef TARGET_RISCV64
 		riscv_sd (code, rs2, rs1, imm);
 #else
 		riscv_sw (code, rs2, rs1, imm);
 #endif
-	} else {
-		code = mono_riscv_emit_imm (code, RISCV_T6, imm);
-		riscv_add (code, RISCV_T6, rs1, RISCV_T6);
+		break;
+	case 1:
+		riscv_sb (code, rs2, rs1, imm);
+		break;
+	case 4:
+		riscv_sh (code, rs2, rs1, imm);
+		break;
+	case 8:
+		riscv_sw (code, rs2, rs1, imm);
+		break;
 #ifdef TARGET_RISCV64
-		riscv_sd (code, rs2, RISCV_T6, 0);
-#else
-		riscv_sw (code, rs2, RISCV_T6, 0);
+	case 16:
+		riscv_sw (code, rs2, rs1, imm);
+		break;
 #endif
+	default:
+		g_assert_not_reached();
+		break;
 	}
-
 	return code;
 }
 
@@ -1472,7 +1505,7 @@ emit_store_regset (guint8 *code, guint64 regs, int basereg, int offset){
 
 	for (i = 0; i < 32; ++i) {
 		if (regs & (1 << i)) {
-			code = mono_riscv_emit_store (code, i, basereg, -(offset + (pos * sizeof(target_mgreg_t))));
+			code = mono_riscv_emit_store (code, i, basereg, -(offset + (pos * sizeof(target_mgreg_t))), 0);
 		}
 	}
 	return code;
@@ -1496,7 +1529,7 @@ emit_setup_lmf (MonoCompile *cfg, guint8 *code, gint32 lmf_offset, int cfa_offse
 
 	/* pc */
 	code = mono_riscv_emit_imm (code, RISCV_T6, (gsize)code);
-	code = mono_riscv_emit_store (code, RISCV_T6, RISCV_FP, -(lmf_offset + MONO_STRUCT_OFFSET (MonoLMF, pc)));
+	code = mono_riscv_emit_store (code, RISCV_T6, RISCV_FP, -(lmf_offset + MONO_STRUCT_OFFSET (MonoLMF, pc)), 0);
 	/* gregs + fp + sp */
 	// code = emit_store_regset_cfa (cfg, code, (MONO_ARCH_CALLEE_SAVED_REGS | (1 << RISCV_FP) | (1 << RISCV_SP)), RISCV_FP, lmf_offset + MONO_STRUCT_OFFSET (MonoLMF, gregs), cfa_offset, (1 << RISCV_FP) | (1 << RISCV_SP));
 	code = emit_store_regset (code, (MONO_ARCH_CALLEE_SAVED_REGS | (1 << RISCV_FP) | (1 << RISCV_SP)), RISCV_FP, lmf_offset + MONO_STRUCT_OFFSET (MonoLMF, gregs));
@@ -1594,12 +1627,12 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 
 		// save return value
 		stack_size += sizeof(target_mgreg_t);
-		code = mono_riscv_emit_store(code, RISCV_RA, RISCV_SP, cfg->stack_offset - stack_size);
+		code = mono_riscv_emit_store(code, RISCV_RA, RISCV_SP, cfg->stack_offset - stack_size, 0);
 		MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 
 		// save s0(fp) value
 		stack_size += sizeof(target_mgreg_t);
-		code = mono_riscv_emit_store(code, RISCV_FP, RISCV_SP, cfg->stack_offset - stack_size);
+		code = mono_riscv_emit_store(code, RISCV_FP, RISCV_SP, cfg->stack_offset - stack_size, 0);
 		MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 	}
 	else{
@@ -1756,6 +1789,8 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 
 		switch (ins->opcode) {
 			case OP_NOT_REACHED:
+			case OP_NOT_NULL:
+			case OP_DUMMY_USE:
 				break;
 			case OP_GET_EX_OBJ:
 				if (ins->dreg != RISCV_A0){
@@ -1777,7 +1812,11 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
 			case OP_STORE_MEMBASE_REG:
-				code = mono_riscv_emit_store(code, ins->sreg1, ins->dreg, ins->inst_offset);
+				code = mono_riscv_emit_store(code, ins->sreg1, ins->dreg, ins->inst_offset, 0);
+				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+				break;
+			case OP_STOREI1_MEMBASE_REG:
+				code = mono_riscv_emit_store(code, ins->sreg1, ins->dreg, ins->inst_offset, 1);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
 			case OP_ICONST:
@@ -1792,6 +1831,16 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_ADD_IMM:
 			case OP_LADD_IMM:
 				riscv_addi(code, ins->dreg, ins->sreg1, ins->inst_imm);
+				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+				break;
+
+			/* Bit/logic */
+			case OP_IAND:
+				riscv_and(code, ins->dreg, ins->sreg1, ins->sreg2);
+				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+				break;
+			case OP_SHR_UN_IMM:
+				riscv_srli(code, ins->dreg, ins->sreg1, ins->inst_imm);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
 

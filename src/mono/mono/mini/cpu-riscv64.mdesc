@@ -42,8 +42,9 @@ call: dest:a len:32 clob:c
 voidcall: len:32 clob:c
 voidcall_reg: src1:i len:32 clob:c
 
-storei1_membase_imm: dest:b len:32
 store_membase_reg: dest:b src1:i len:32
+storei1_membase_reg: dest:b src1:i len:32
+storei4_membase_reg: dest:b src1:i len:32
 
 load_membase: dest:i src1:b len:32
 loadu4_membase: dest:i src1:b len:32
@@ -58,8 +59,8 @@ long_add_imm: dest:i src1:i len:32
 long_add: dest:i src1:i src2:i len:32
 
 shr_un_imm: dest:i src1:i len:32
+int_and: dest:i src1:i src2:i len:32
 long_and_imm: dest:i src1:i len:32
-long_and: dest:i src1:i src2:i len:32
 
 riscv_beq: src1:i src2:i len:32
 riscv_bne: src1:i src2:i len:32
