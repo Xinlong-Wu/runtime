@@ -1819,6 +1819,10 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				code = mono_riscv_emit_store(code, ins->sreg1, ins->dreg, ins->inst_offset, 1);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
+			case OP_STOREI4_MEMBASE_REG:
+				code = mono_riscv_emit_store(code, ins->sreg1, ins->dreg, ins->inst_offset, 4);
+				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+				break;
 			case OP_ICONST:
 			case OP_I8CONST:
 				code = mono_riscv_emit_imm(code, ins->dreg, ins->inst_c0);
@@ -1867,6 +1871,11 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				break;
 
 			/* Branch */
+			case OP_RISCV_BNE:
+				mono_add_patch_info_rel (cfg, (code - cfg->native_code), MONO_PATCH_INFO_BB, ins->inst_true_bb, MONO_R_RISCV_BNE);
+				riscv_bne(code, ins->sreg1, ins->sreg2, 0);
+				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+				break;
 			case OP_RISCV_BEQ:
 				mono_add_patch_info_rel (cfg, (code - cfg->native_code), MONO_PATCH_INFO_BB, ins->inst_true_bb, MONO_R_RISCV_BEQ);
 				riscv_beq(code, ins->sreg1, ins->sreg2, 0);
