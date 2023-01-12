@@ -265,10 +265,16 @@ __attribute__ ((warn_unused_result)) guint8 *
 mono_riscv_emit_fload (guint8 *code, int rd, int rs1, gint32 imm);
 
 __attribute__ ((warn_unused_result)) guint8 *
-mono_riscv_emit_store (guint8 *code, int rs1, int rs2, gint32 imm);
+mono_riscv_emit_store (guint8 *code, int rs1, int rs2, gint32 imm, int length);
 
 __attribute__ ((warn_unused_result)) guint8 *
 mono_riscv_emit_fstore (guint8 *code, int rd, int rs1, gint32 imm);
+
+__attribute__ ((warn_unused_result)) guint8 *
+emit_store_regset (guint8 *code, guint64 regs, int basereg, int offset);
+
+__attribute__ ((warn_unused_result)) guint8 *
+emit_load_regset (guint8 *code, guint64 used_regs, int basereg, int offset);
 
 void
 mono_riscv_patch (guint8 *code, guint8 *target, int relocation);
