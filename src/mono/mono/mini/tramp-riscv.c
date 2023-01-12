@@ -270,12 +270,12 @@ mono_arch_get_interp_to_native_trampoline (MonoTrampInfo **info)
 
 	// save ra reg to the frame top
 	stackpointer -= sizeof (target_mgreg_t);
-	code = mono_riscv_emit_store(code, RISCV_RA, RISCV_SP, stackpointer);
+	code = mono_riscv_emit_store(code, RISCV_RA, RISCV_SP, stackpointer, 0);
 	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
 
 	// save previous fp
 	stackpointer -= sizeof (target_mgreg_t);
-	code = mono_riscv_emit_store(code, RISCV_FP, RISCV_SP, stackpointer);
+	code = mono_riscv_emit_store(code, RISCV_FP, RISCV_SP, stackpointer, 0);
 	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
 
 	// set new fp
@@ -285,13 +285,13 @@ mono_arch_get_interp_to_native_trampoline (MonoTrampInfo **info)
 	/* save CallContext* onto stack */
 	stackpointer -= sizeof (target_mgreg_t);
 	off_methodargs = stackpointer;
-	code = mono_riscv_emit_store (code, RISCV_A1, RISCV_SP, stackpointer);
+	code = mono_riscv_emit_store (code, RISCV_A1, RISCV_SP, stackpointer, 0);
 	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
 
 	/* save target address onto stack */
 	stackpointer -= sizeof (target_mgreg_t);
 	off_targetaddr = stackpointer;
-	code = mono_riscv_emit_store (code, RISCV_A0, RISCV_SP, stackpointer);
+	code = mono_riscv_emit_store (code, RISCV_A0, RISCV_SP, stackpointer, 0);
 	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
 
 	/* extend the stack space as CallContext has specified */
@@ -315,7 +315,7 @@ mono_arch_get_interp_to_native_trampoline (MonoTrampInfo **info)
 	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
 	code = mono_riscv_emit_load(code, RISCV_T3, RISCV_T2, 0);
 	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
-	code = mono_riscv_emit_store(code, RISCV_T3, RISCV_T1, 0);
+	code = mono_riscv_emit_store(code, RISCV_T3, RISCV_T1, 0, 0);
 	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
 	riscv_addi (code, RISCV_T1, RISCV_T1, sizeof (target_mgreg_t));
 	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
@@ -358,7 +358,7 @@ mono_arch_get_interp_to_native_trampoline (MonoTrampInfo **info)
 
 	/* set all general registers from CallContext */
 	for (i = 0; i < RISCV_N_GAREGS; i++){
-		code = mono_riscv_emit_store (code, RISCV_A0 + i, RISCV_T0, MONO_STRUCT_OFFSET (CallContext, gregs) + (RISCV_A0 + i) * sizeof (target_mgreg_t));
+		code = mono_riscv_emit_store (code, RISCV_A0 + i, RISCV_T0, MONO_STRUCT_OFFSET (CallContext, gregs) + (RISCV_A0 + i) * sizeof (target_mgreg_t), 0);
 		MONO_ARCH_DUMP_CODE_DEBUG(code,1);
 	}
 

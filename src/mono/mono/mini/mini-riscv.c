@@ -1499,7 +1499,7 @@ mono_riscv_emit_call (MonoCompile *cfg, guint8* code, MonoJumpInfoType patch_typ
  *   Emit code to store the registers in REGS into consecutive memory locations starting
  * at BASEREG+OFFSET.
  */
-static __attribute__ ((__warn_unused_result__)) guint8*
+guint8*
 emit_store_regset (guint8 *code, guint64 regs, int basereg, int offset){
 	int i, pos = 0;
 
@@ -1683,7 +1683,7 @@ mono_arch_emit_prolog (MonoCompile *cfg)
  *   Emit code to load the registers in REGS from consecutive memory locations starting
  * at BASEREG+OFFSET.
  */
-static __attribute__ ((__warn_unused_result__)) guint8*
+guint8*
 emit_load_regset (guint8 *code, guint64 used_regs, int basereg, int offset){
 	int i;
 	// int pos;
