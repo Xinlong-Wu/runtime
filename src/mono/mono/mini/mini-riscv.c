@@ -1810,6 +1810,11 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				riscv_beq(code, ins->sreg1, ins->sreg2, 0);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
+			case OP_BR:
+				mono_add_patch_info_rel (cfg, offset, MONO_PATCH_INFO_BB, ins->inst_target_bb, MONO_R_RISCV_JAL);
+				riscv_jal (code, RISCV_ZERO, 0);
+				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+				break;
 			case OP_GC_SAFE_POINT:{
 				guint8 *src_inst_pointer [1];
 
