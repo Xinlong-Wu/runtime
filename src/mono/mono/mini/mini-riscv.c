@@ -1757,6 +1757,13 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 		switch (ins->opcode) {
 			case OP_NOT_REACHED:
 				break;
+			case OP_GET_EX_OBJ:
+				if (ins->dreg != RISCV_A0){
+					// mv dreg, RISCV_A0
+					riscv_addi(code, ins->dreg, RISCV_A0, 0);
+					MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+				}
+				break;
 			case OP_IL_SEQ_POINT:
 				mono_add_seq_point (cfg, bb, ins, code - cfg->native_code);
 				break;
@@ -1785,6 +1792,12 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_ADD_IMM:
 			case OP_LADD_IMM:
 				riscv_addi(code, ins->dreg, ins->sreg1, ins->inst_imm);
+				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+				break;
+
+			/* Atomic */
+			case OP_MEMORY_BARRIER:
+				riscv_fence(code, RISCV_FENCE_MEM, RISCV_FENCE_MEM);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
 
