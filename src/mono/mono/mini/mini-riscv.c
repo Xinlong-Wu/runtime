@@ -315,17 +315,80 @@ mono_arch_get_argument_info (MonoMethodSignature *csig, int param_count,
     return 0;
 }
 
+static guint8*
+emit_thunk (guint8 *code, gconstpointer target)
+{
+	g_print("emit thunk at 0x%lx\n",code);
+	guint8 *p = code;
+	code = mono_riscv_emit_imm(code, RISCV_T0, target);
+	riscv_jalr (code, RISCV_RA, RISCV_T0,0);
+	g_print("jalr ra, 0(t0)\n");
+	riscv_jalr (code, RISCV_ZERO, RISCV_RA, 0);
+	g_print("ret\n");
+
+	mono_arch_flush_icache (p, code - p);
+	g_print("end of thunk at 0x%x\n",p);
+	return code;
+}
+
+static gpointer
+create_thunk (MonoCompile *cfg, guchar *code, const guchar *target){
+	MonoJitInfo *ji;
+	MonoThunkJitInfo *info;
+	guint8 *thunks, *p;
+	int thunks_size;
+	guint8 *orig_target;
+	guint8 *target_thunk;
+
+	if (cfg) {
+		/*
+		 * This can be called multiple times during JITting,
+		 * save the current position in cfg->arch to avoid
+		 * doing a O(n^2) search.
+		 */
+		if (!cfg->arch.thunks) {
+			cfg->arch.thunks = cfg->thunks;
+			cfg->arch.thunks_size = cfg->thunk_area;
+		}
+
+		thunks = cfg->arch.thunks;
+		thunks_size = cfg->arch.thunks_size;
+		if (!thunks_size) {
+			g_print ("thunk failed %p->%p, thunk space=%d method %s", code, target, thunks_size, mono_method_full_name (cfg->method, TRUE));
+			g_assert_not_reached ();
+		}
+
+		g_assert (*(guint32*)thunks == 0);
+		emit_thunk (thunks, target);
+
+		cfg->arch.thunks += THUNK_SIZE;
+		cfg->arch.thunks_size -= THUNK_SIZE;
+
+		return thunks;
+	}
+	else {
+		NOT_IMPLEMENTED;
+	}
+}
+
 static void
 riscv_patch_full (MonoCompile *cfg, guint8 *code, guint8 *target, int relocation){
 	switch (relocation){
 		case MONO_R_RISCV_JAL:
 			target = MINI_FTNPTR_TO_ADDR (target);
-			if(!riscv_is_jal_disp(code,target))
-				NOT_IMPLEMENTED;
+			if(riscv_is_jal_disp(code,target)){
+				riscv_jal(code, RISCV_RA, (gint32)target & 0xffffe);
+				g_print("jar ra, 0x%x <0x%lx> ", (gint32)target & 0xffffe, target);
+				MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
+			}
+			else{
+				gpointer thunk;
+
+				thunk = create_thunk (cfg, code, target);
+				g_assert (riscv_is_jal_disp (code, thunk));
+				riscv_jal (code, RISCV_RA, thunk);
+			}
 			
-			riscv_jal(code, RISCV_RA, (gint32)target & 0xffffe);
-			g_print("jar ra, 0x%x <0x%lx> ", (gint32)target & 0xffffe, target);
-			MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
 			break;
 		case MONO_R_RISCV_BEQ:{
 			int offset = target - code;
@@ -1489,7 +1552,7 @@ mono_riscv_emit_call (MonoCompile *cfg, guint8* code, MonoJumpInfoType patch_typ
 	mono_add_patch_info_rel (cfg, code - cfg->native_code, patch_type, data, MONO_R_RISCV_JAL);
 	// only used as a placeholder
 	riscv_jal(code, RISCV_RA, 0);
-	cfg->thunk_area = 0;
+	cfg->thunk_area += THUNK_SIZE;
 	return code;
 }
 
