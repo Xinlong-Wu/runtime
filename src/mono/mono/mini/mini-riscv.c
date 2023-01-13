@@ -1330,7 +1330,7 @@ mono_riscv_emit_imm (guint8 *code, int rd, gsize imm)
 		// Lo is in signed num
 		// if Lo > 0x800
 		// convert into ((Hi + 1) << 20) -  (0x1000 - Lo)
-		if(Lo > 0x800){
+		if(Lo >= 0x800){
 			Hi += 1;
 			Lo = Lo - 0x1000;
 		}
