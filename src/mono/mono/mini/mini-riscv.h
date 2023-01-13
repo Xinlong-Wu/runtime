@@ -155,6 +155,8 @@
 // #define MONO_ARCH_HAVE_INTERP_PINVOKE_TRAMP (1)
 // #define MONO_ARCH_HAVE_INTERP_NATIVE_TO_MANAGED (1)
 
+#define THUNK_SIZE (4 * 4 + 8)
+
 #define MONO_ARCH_DUMP_CODE_DEBUG(code, is_output) \
 	if (is_output) \
 		g_print("[0x%x, 0x%x, 0x%x, 0x%x]\n",*(code-4),*(code-3),*(code-2),*(code-1));
@@ -166,6 +168,8 @@ typedef struct {
 	MonoInst *seq_point_info_var;
 	MonoInst *ss_tramp_var;
 	MonoInst *bp_tramp_var;
+	guint8 *thunks;
+	int thunks_size;
 } MonoCompileArch;
 
 #define MONO_CONTEXT_SET_LLVM_EXC_REG(ctx, exc) \
@@ -256,7 +260,7 @@ enum {
 };
 
 __attribute__ ((warn_unused_result)) guint8 *
-mono_riscv_emit_imm (guint8 *code, int rd, gsize imm);
+mono_riscv_emit_imm (guint8 *code, int rd, gint64 imm);
 
 __attribute__ ((warn_unused_result)) guint8 *
 mono_riscv_emit_load (guint8 *code, int rd, int rs1, gint32 imm);
