@@ -323,6 +323,8 @@ emit_thunk (guint8 *code, gconstpointer target)
 	code = mono_riscv_emit_imm(code, RISCV_T0, target);
 	riscv_jalr (code, RISCV_RA, RISCV_T0,0);
 	g_print("jalr ra, 0(t0)\n");
+
+	// TODO: figure out whether thunk need return and deicde delet or not
 	riscv_jalr (code, RISCV_ZERO, RISCV_RA, 0);
 	g_print("ret\n");
 
@@ -401,6 +403,10 @@ riscv_patch_full (MonoCompile *cfg, guint8 *code, guint8 *target, int relocation
 			riscv_beq (code, rs1, rs2, offset);
 			g_print("BEQ %s, %s, 0x%x <0x%lx> ", mono_arch_regname(rs1), mono_arch_regname(rs2), (gint32)offset & 0xffe, offset);
 			MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
+			break;
+		}
+		case MONO_R_RISCV_BNE:{
+
 			break;
 		}
 		default:
