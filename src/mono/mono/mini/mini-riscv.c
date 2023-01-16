@@ -374,22 +374,23 @@ create_thunk (MonoCompile *cfg, guchar *code, const guchar *target){
 static void
 riscv_patch_full (MonoCompile *cfg, guint8 *code, guint8 *target, int relocation){
 	switch (relocation){
-		case MONO_R_RISCV_JAL:
+		case MONO_R_RISCV_JAL:{
+			gint32 inst = *(gint32 *) code;
+			gint32 rd = RISCV_BITS (inst, 7, 5);
 			target = MINI_FTNPTR_TO_ADDR (target);
 			if(riscv_is_jal_disp(code,target)){
-				riscv_jal(code, RISCV_RA, riscv_get_jal_disp(code,target));
-				g_print("jar ra, 0x%x <0x%lx> ", riscv_get_jal_disp(code,target), target);
+				riscv_jal(code, rd, riscv_get_jal_disp(code,target));
+				g_print("jar %s, 0x%x <0x%lx> ",mono_arch_regname(rd), riscv_get_jal_disp(code,target), target);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
 			}
 			else{
 				gpointer thunk;
-
 				thunk = create_thunk (cfg, code, target);
 				g_assert (riscv_is_jal_disp (code, thunk));
-				riscv_jal (code, RISCV_RA, thunk);
+				riscv_jal (code, rd, thunk);
 			}
-			
 			break;
+		}
 		case MONO_R_RISCV_BEQ:{
 			int offset = target - code;
 			g_assert (RISCV_VALID_B_IMM ((gint32) (gssize) (offset)));
