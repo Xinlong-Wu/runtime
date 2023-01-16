@@ -377,8 +377,8 @@ riscv_patch_full (MonoCompile *cfg, guint8 *code, guint8 *target, int relocation
 		case MONO_R_RISCV_JAL:
 			target = MINI_FTNPTR_TO_ADDR (target);
 			if(riscv_is_jal_disp(code,target)){
-				riscv_jal(code, RISCV_RA, (gint32)target & 0xffffe);
-				g_print("jar ra, 0x%x <0x%lx> ", (gint32)target & 0xffffe, target);
+				riscv_jal(code, RISCV_RA, riscv_get_jal_disp(code,target));
+				g_print("jar ra, 0x%x <0x%lx> ", riscv_get_jal_disp(code,target), target);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
 			}
 			else{
@@ -1378,6 +1378,7 @@ mono_riscv_emit_imm (guint8 *code, int rd, gsize imm)
 #ifdef TARGET_RISCV64
 	if (RISCV_VALID_I_IMM (imm)) {
 		riscv_addi (code, rd, RISCV_ZERO, imm);
+		g_print("addi %s, X0, %x\n",mono_arch_regname(rd), imm);
 		return code;
 	}
 
@@ -1399,9 +1400,12 @@ mono_riscv_emit_imm (guint8 *code, int rd, gsize imm)
 		}
 
 		// if Hi is 0 or overflow, skip
-		if(Hi < 0xfffff)
+		if(Hi < 0xfffff){
 			riscv_lui(code, rd, Hi);
+			g_print("lui %s, %x\n",mono_arch_regname(rd), Hi);
+		}
 		riscv_addiw(code, rd, rd, Lo);
+		g_print("addiw %s, %s, %x\n",mono_arch_regname(rd),mono_arch_regname(rd), Lo);
 	}
 
 	/*
@@ -1412,6 +1416,7 @@ mono_riscv_emit_imm (guint8 *code, int rd, gsize imm)
 	*(guint64 *) code = imm;
 	code += sizeof (guint64);
 	riscv_ld (code, rd, rd, 0);
+	g_print("load  %s, %s, 0x%lx\n",mono_arch_regname(rd), mono_arch_regname(rd), imm);
 #else
 	if (RISCV_VALID_I_IMM (imm)) {
 		riscv_addi (code, rd, RISCV_ZERO, imm);
