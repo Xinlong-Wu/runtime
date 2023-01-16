@@ -389,7 +389,9 @@ riscv_patch_full (MonoCompile *cfg, guint8 *code, guint8 *target, int relocation
 				gpointer thunk;
 				thunk = create_thunk (cfg, code, target);
 				g_assert (riscv_is_jal_disp (code, thunk));
-				riscv_jal (code, rd, thunk);
+				riscv_jal (code, rd, riscv_get_jal_disp(code,thunk));
+				g_print("jar %s, 0x%x <0x%lx> via thunk <%lx>",mono_arch_regname(rd), riscv_get_jal_disp(code,target), target, thunk);
+				MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
 			}
 			break;
 		}
