@@ -69,7 +69,7 @@ static const gint16 opidx [] = {
 
 #endif
 
-#define ARCH_PREFIX ""
+#define ARCH_PREFIX "riscv64-linux-gnu-"
 //#define ARCH_PREFIX "powerpc64-linux-gnu-"
 
 const char*
