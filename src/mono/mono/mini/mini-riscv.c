@@ -1062,7 +1062,7 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 	offset = 0;
 	// save FP reg to stack firstly
 	cfg->frame_reg = RISCV_FP;
-	offset += sizeof (target_mgreg_t);
+	offset += sizeof (host_mgreg_t);
 
 	if (cfg->method->save_lmf) {
 		/* Save all callee-saved registers normally, and restore them when unwinding through an LMF */
@@ -1073,7 +1073,7 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 		cfg->arch.saved_gregs_offset = offset;
 		for (guint i = 0; i < 32; ++i)
 			if ((MONO_ARCH_CALLEE_SAVED_REGS & (1 << i)) && (cfg->used_int_regs & (1 << i)))
-				offset += sizeof (target_mgreg_t);
+				offset += sizeof (host_mgreg_t);
 	}
 
 	/* Return value */
@@ -1109,7 +1109,7 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 			case ArgInIReg:
 			case ArgInFReg:
 				ins->inst_offset = offset;
-				offset += sizeof (target_mgreg_t);
+				offset += sizeof (host_mgreg_t);
 				break;
 			case ArgOnStack:
 			case ArgVtypeOnStack:
@@ -1134,8 +1134,8 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 	// FIXME: Allocate these to registers
 	ins = cfg->arch.seq_point_info_var;
 	if (ins) {
-		size = sizeof (target_mgreg_t);
-		align = sizeof (target_mgreg_t);
+		size = sizeof (host_mgreg_t);
+		align = sizeof (host_mgreg_t);
 		offset += align - 1;
 		offset &= ~(align - 1);
 		ins->opcode = OP_REGOFFSET;
@@ -1145,8 +1145,8 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 	}
 	ins = cfg->arch.ss_tramp_var;
 	if (ins) {
-		size = sizeof (target_mgreg_t);
-		align = sizeof (target_mgreg_t);
+		size = sizeof (host_mgreg_t);
+		align = sizeof (host_mgreg_t);
 		offset += align - 1;
 		offset &= ~(align - 1);
 		ins->opcode = OP_REGOFFSET;
@@ -1156,8 +1156,8 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 	}
 	ins = cfg->arch.bp_tramp_var;
 	if (ins) {
-		size = sizeof (target_mgreg_t);
-		align = sizeof (target_mgreg_t);
+		size = sizeof (host_mgreg_t);
+		align = sizeof (host_mgreg_t);
 		offset += align - 1;
 		offset &= ~(align - 1);
 		ins->opcode = OP_REGOFFSET;
@@ -1585,7 +1585,7 @@ emit_store_regset (guint8 *code, guint64 regs, int basereg, int offset){
 
 	for (i = 0; i < 32; ++i) {
 		if (regs & (1 << i)) {
-			code = mono_riscv_emit_store (code, i, basereg, -(offset + (pos * sizeof(target_mgreg_t))), 0);
+			code = mono_riscv_emit_store (code, i, basereg, -(offset + (pos * sizeof(host_mgreg_t))), 0);
 		}
 	}
 	return code;
