@@ -6,9 +6,9 @@
 #include "mini.h"
 #include "mini-riscv.h"
 #include "mini-runtime.h"
-#include "debugger-agent.h"
 
 #include <mono/metadata/abi-details.h>
+#include <mono/metadata/components.h>
 
 void
 mono_arch_patch_callsite (guint8 *method_start, guint8 *code_ptr, guint8 *addr)
@@ -274,7 +274,7 @@ mono_arch_create_sdb_trampoline (gboolean single_step, MonoTrampInfo **info, gbo
 		NOT_IMPLEMENTED;
 	}
 	else{
-		void (*addr) (MonoContext *ctx) = single_step ? mini_get_dbg_callbacks ()->single_step_from_context : mini_get_dbg_callbacks ()->breakpoint_from_context;
+		void (*addr) (MonoContext *ctx) = single_step ? mono_component_debugger ()->single_step_from_context : mono_component_debugger ()->breakpoint_from_context;
 		code = mono_riscv_emit_imm (code, RISCV_T0, (guint64)addr);
 	}
 	riscv_jalr(code, RISCV_RA, RISCV_T0, 0);
