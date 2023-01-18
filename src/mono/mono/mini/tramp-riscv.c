@@ -6,6 +6,7 @@
 #include "mini.h"
 #include "mini-riscv.h"
 #include "mini-runtime.h"
+#include "debugger-agent.h"
 
 #include <mono/metadata/abi-details.h>
 
@@ -201,11 +202,105 @@ mono_arch_create_general_rgctx_lazy_fetch_trampoline (MonoTrampInfo **info, gboo
 	return buf;
 }
 
+/*
+ * mono_arch_create_sdb_trampoline:
+ *
+ *   Return a trampoline which captures the current context, passes it to
+ * mini_get_dbg_callbacks ()->single_step_from_context ()/mini_get_dbg_callbacks ()->breakpoint_from_context (),
+ * then restores the (potentially changed) context.
+ */
 guint8 *
 mono_arch_create_sdb_trampoline (gboolean single_step, MonoTrampInfo **info, gboolean aot)
 {
-	NOT_IMPLEMENTED;
-	return NULL;
+	int tramp_size = 512;
+	int offset, imm, frame_size, ctx_offset;
+	guint64 gregs_regset;
+	guint8 *code, *buf;
+	GSList *unwind_ops = NULL;
+	MonoJumpInfo *ji = NULL;
+
+	code = buf = mono_global_codeman_reserve (tramp_size);
+
+	/* Compute stack frame size and offsets */
+	offset = 0;
+
+	/* frame block */
+	offset += 2 * sizeof(host_mgreg_t);
+
+	/* MonoContext */
+	ctx_offset = offset;
+	offset += sizeof (MonoContext);
+	offset = ALIGN_TO (offset, MONO_ARCH_FRAME_ALIGNMENT);
+	frame_size = offset;
+
+	// FIXME: Unwind info
+
+	MINI_BEGIN_CODEGEN ();
+	/* Setup stack frame */
+	imm = frame_size;
+	if(imm >= 0x800){
+		code = mono_riscv_emit_imm(code, RISCV_T0, -imm);
+		riscv_add(code, RISCV_SP, RISCV_SP, RISCV_T0);
+	}
+	else{
+		riscv_addi(code, RISCV_SP, RISCV_SP, -imm);
+	}
+
+	imm -= sizeof(host_mgreg_t);
+	code = mono_riscv_emit_store(code, RISCV_RA, RISCV_SP, imm, 0);
+	imm -= sizeof(host_mgreg_t);
+	code = mono_riscv_emit_store(code, RISCV_S0, RISCV_SP, imm, 0);
+	riscv_addi(code, RISCV_S0, RISCV_SP, frame_size);
+
+	/* Initialize a MonoContext structure on the stack */
+	/* No need to save fregs */
+	gregs_regset = ~((1 << RISCV_S0) | (1 << RISCV_SP));
+	code = emit_store_regset(code, gregs_regset, RISCV_FP, ctx_offset + G_STRUCT_OFFSET (MonoContext, gregs));
+	/* Save caller fp */
+	code = mono_riscv_emit_load(code, RISCV_T0, RISCV_FP, -sizeof(host_mgreg_t)*2);
+	code = mono_riscv_emit_store(code, RISCV_T0, RISCV_FP, ctx_offset + G_STRUCT_OFFSET (MonoContext, gregs) + (RISCV_FP * sizeof(host_mgreg_t)), 0);
+	/* Save caller sp */
+	/* the value of current fp equals to caller's sp*/
+	code = mono_riscv_emit_store(code, RISCV_FP, RISCV_FP, ctx_offset + G_STRUCT_OFFSET (MonoContext, gregs) + (RISCV_SP * sizeof(host_mgreg_t)), 0);
+	/* Save caller ip, aka ra*/
+	code = mono_riscv_emit_load(code, RISCV_T0, RISCV_FP, -sizeof(host_mgreg_t));
+	// use greg[0] store pc
+	code = mono_riscv_emit_store(code, RISCV_T0, RISCV_FP, ctx_offset + G_STRUCT_OFFSET (MonoContext, gregs), 0);
+
+	/* Call the single step/breakpoint function in sdb */
+	/* Arg1 = ctx */
+	riscv_addi(code, RISCV_A1, RISCV_FP, ctx_offset);
+	if (aot){
+		NOT_IMPLEMENTED;
+	}
+	else{
+		void (*addr) (MonoContext *ctx) = single_step ? mini_get_dbg_callbacks ()->single_step_from_context : mini_get_dbg_callbacks ()->breakpoint_from_context;
+		code = mono_riscv_emit_imm (code, RISCV_T0, (guint64)addr);
+	}
+	riscv_jalr(code, RISCV_RA, RISCV_T0, 0);
+
+	/* Restore ctx */
+	/* Save fp/pc into the frame block */
+	code = mono_riscv_emit_load(code, RISCV_T0, RISCV_FP, ctx_offset + G_STRUCT_OFFSET (MonoContext, gregs) + (RISCV_FP * 8));
+	code = mono_riscv_emit_store(code, RISCV_T0, RISCV_FP, -sizeof(host_mgreg_t)*2, 0);
+	code = mono_riscv_emit_load(code, RISCV_T0, RISCV_FP, ctx_offset + G_STRUCT_OFFSET (MonoContext, gregs) + (RISCV_SP * 8));
+	code = mono_riscv_emit_store(code, RISCV_T0, RISCV_FP, -sizeof(host_mgreg_t), 0);
+
+	gregs_regset = ~((1 << RISCV_S0) | (1 << RISCV_SP));
+	code = emit_load_regset(code, gregs_regset, RISCV_FP, ctx_offset + G_STRUCT_OFFSET (MonoContext, gregs));
+
+	code = mono_riscv_emit_destroy_frame (code, frame_size);
+
+	riscv_jalr(code, RISCV_ZERO, RISCV_RA, 0);
+
+	g_assert (code - buf <= tramp_size);
+	
+	MINI_END_CODEGEN (buf, code - buf, MONO_PROFILER_CODE_BUFFER_HELPER, NULL);
+
+	const char *tramp_name = single_step ? "sdb_single_step_trampoline" : "sdb_breakpoint_trampoline";
+	*info = mono_tramp_info_create (tramp_name, buf, code - buf, ji, unwind_ops);
+
+	return (guint8*)MINI_ADDR_TO_FTNPTR (buf);
 }
 
 /*

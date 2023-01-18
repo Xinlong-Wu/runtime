@@ -14,6 +14,12 @@
 #include "cpu-riscv32.h"
 #endif
 
+/* The single step trampoline */
+static gpointer ss_trampoline;
+
+/* The breakpoint trampoline */
+static gpointer bp_trampoline;
+
 static gboolean riscv_stdext_a, riscv_stdext_b, riscv_stdext_c,
                 riscv_stdext_d, riscv_stdext_f, riscv_stdext_j,
                 riscv_stdext_l, riscv_stdext_m, riscv_stdext_n,
@@ -33,6 +39,9 @@ mono_arch_init (void)
 	riscv_stdext_d = mono_hwcap_riscv_has_stdext_d;
 	riscv_stdext_f = mono_hwcap_riscv_has_stdext_f;
 	riscv_stdext_m = mono_hwcap_riscv_has_stdext_m;
+
+	if (!mono_aot_only)
+		bp_trampoline = mini_get_breakpoint_trampoline ();
 }
 
 void
@@ -313,6 +322,26 @@ mono_arch_get_argument_info (MonoMethodSignature *csig, int param_count,
 {
     NOT_IMPLEMENTED;
     return 0;
+}
+
+/**
+ * Emits:
+ *   ld ra, stack_offset-8(sp) # 8-byte Folded Reload
+ *   ld s0, stack_offset-16(sp) # 8-byte Folded Reload
+ * 	 addi sp,sp,stack_size
+*/
+guint8*
+mono_riscv_emit_destroy_frame (guint8 *code, int stack_offset){
+	g_assert("Check stack align\n" && (stack_offset == (stack_offset>>3)<<3));
+
+	mono_riscv_emit_load(code, RISCV_RA, RISCV_SP, stack_offset - sizeof(host_mgreg_t));
+	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
+	mono_riscv_emit_load(code, RISCV_S0, RISCV_SP, stack_offset - sizeof(host_mgreg_t)*2);
+	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
+	riscv_addi(code, RISCV_SP, RISCV_SP, stack_offset);
+	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
+
+	return code;
 }
 
 static guint8*
@@ -822,10 +851,36 @@ mono_arch_create_vars (MonoCompile *cfg)
 {
 	// TODO: do not process any vars just for init implement.
 
-	// NOT_IMPLEMENTED;
-	// MonoMethodSignature *sig;
+	MonoMethodSignature *sig;
+	CallInfo *cinfo;
+	
+	sig = mono_method_signature_internal (cfg->method);
+	if (!cfg->arch.cinfo)
+		cfg->arch.cinfo = get_call_info (cfg->mempool, sig);
+	cinfo = cfg->arch.cinfo;
 
-	// sig = mono_method_signature_internal (cfg->method);
+	if (cinfo->ret.storage == ArgVtypeByRef) {
+		cfg->vret_addr = mono_compile_create_var (cfg, mono_get_int_type (), OP_LOCAL);
+		cfg->vret_addr->flags |= MONO_INST_VOLATILE;
+	}
+
+	if (cfg->gen_sdb_seq_points) {
+		MonoInst *ins;
+
+		if (cfg->compile_aot) {
+			ins = mono_compile_create_var (cfg, mono_get_int_type (), OP_LOCAL);
+			ins->flags |= MONO_INST_VOLATILE;
+			cfg->arch.seq_point_info_var = ins;
+		}
+
+		ins = mono_compile_create_var (cfg, mono_get_int_type (), OP_LOCAL);
+		ins->flags |= MONO_INST_VOLATILE;
+		cfg->arch.ss_tramp_var = ins;
+
+		ins = mono_compile_create_var (cfg, mono_get_int_type (), OP_LOCAL);
+		ins->flags |= MONO_INST_VOLATILE;
+		cfg->arch.bp_tramp_var = ins;
+	}
 
 	if (cfg->method->save_lmf) {
 		cfg->lmf_ir = TRUE;
@@ -1573,6 +1628,27 @@ mono_riscv_emit_call (MonoCompile *cfg, guint8* code, MonoJumpInfoType patch_typ
 	return code;
 }
 
+
+/*
+ * emit_load_regset:
+ *
+ *   Emit code to load the registers in REGS from consecutive memory locations starting
+ * at BASEREG+OFFSET.
+ */
+guint8*
+emit_load_regset (guint8 *code, guint64 regs, int basereg, int offset){
+	int i;
+	int pos = 0;
+
+	for (i = 0; i < 32; ++i) {
+		if (regs & (1 << i)) {
+			code = mono_riscv_emit_load(code, i, basereg, -(offset + (pos * sizeof(host_mgreg_t))));
+		}
+	}
+
+	return code;
+}
+
 /*
  * emit_store_regset:
  *
@@ -1752,29 +1828,29 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 	 */
 	code = emit_move_args (cfg, code);
 
-	/* TODO: Initialize seq_point_info_var */
-	
-	return code;
-}
-
-/*
- * emit_load_regset:
- *
- *   Emit code to load the registers in REGS from consecutive memory locations starting
- * at BASEREG+OFFSET.
- */
-guint8*
-emit_load_regset (guint8 *code, guint64 used_regs, int basereg, int offset){
-	int i;
-	// int pos;
-
-	// pos = 0;
-	for (i = 0; i < 32; ++i) {
-		if (used_regs & (1 << i)) {
-			g_print("[Emit Epilogue]: Used Reg ID => %d\n", i);
-		}
+	/* Initialize seq_point_info_var */
+	if (cfg->arch.seq_point_info_var){
+		NOT_IMPLEMENTED;
 	}
+	else{
+		MonoInst *ins;
+		if (cfg->arch.ss_tramp_var) {
+			/* Initialize ss_tramp_var */
+			ins = cfg->arch.ss_tramp_var;
+			g_assert (ins->opcode == OP_REGOFFSET);
 
+			code = mono_riscv_emit_imm(code, RISCV_T0, (guint64)&ss_trampoline);
+			code = mono_riscv_emit_store(code, RISCV_T0, ins->inst_basereg, ins->inst_offset, 0);
+		}
+		if (cfg->arch.bp_tramp_var){
+			/* Initialize bp_tramp_var */
+			ins = cfg->arch.bp_tramp_var;
+			g_assert (ins->opcode == OP_REGOFFSET);
+			code = mono_riscv_emit_imm(code, RISCV_T0, (guint64)bp_trampoline);
+			code = mono_riscv_emit_store(code, RISCV_T0, ins->inst_basereg, ins->inst_offset, 0);
+ 		}
+ 	}
+	
 	return code;
 }
 
@@ -1808,23 +1884,7 @@ mono_arch_emit_epilog (MonoCompile *cfg)
 	}
 
 	/* Destroy frame */
-	// 	Emits:
-	//  ld s0,stack_size - 8(sp) # 8-byte Folded Reload
-	// 		...
-	// 	ld s0, 0(sp) # 8-byte Folded Reload
-	//  addi sp,sp,stack_size
-	
-	g_assert("Check stack align\n" && (cfg->stack_offset == (cfg->stack_offset>>3)<<3));
-	for(int offset = cfg->stack_offset; offset > 16; offset-=8){
-		mono_riscv_emit_load(code, RISCV_FP, RISCV_SP, offset - 8);
-		MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
-	}
-	mono_riscv_emit_load(code, RISCV_RA, RISCV_SP, 8);
-	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
-	mono_riscv_emit_load(code, RISCV_S0, RISCV_SP, 0);
-	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
-	riscv_addi(code, RISCV_SP, RISCV_SP, cfg->stack_offset);
-	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+	code = mono_riscv_emit_destroy_frame(code, cfg->stack_offset);
 
 	if(cinfo->ret.storage == ArgNone || cinfo->ret.storage == ArgInIReg)
 		riscv_jalr(code, RISCV_X0, RISCV_RA, 0);
@@ -1882,6 +1942,42 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_IL_SEQ_POINT:
 				mono_add_seq_point (cfg, bb, ins, code - cfg->native_code);
 				break;
+			case OP_SEQ_POINT:{
+				MonoInst *info_var = cfg->arch.seq_point_info_var;
+				if (ins->flags & MONO_INST_SINGLE_STEP_LOC){
+					MonoInst *var = cfg->arch.ss_tramp_var;
+
+					g_assert (var);
+					g_assert (var->opcode == OP_REGOFFSET);
+					/* Load ss_tramp_var */
+					/* This is equal to &ss_trampoline */
+					code = mono_riscv_emit_load(code, RISCV_T0, var->inst_basereg, var->inst_offset);
+					/* Load the trampoline address */
+					code = mono_riscv_emit_load(code, RISCV_T0, RISCV_T0, 0);
+					/* Call it if it is non-null */
+					// In riscv, we use jalr to jump
+					riscv_beq(code, RISCV_ZERO, RISCV_T0, 8);
+					riscv_jalr(code, RISCV_ZERO, RISCV_T0, 0);
+				}
+				mono_add_seq_point (cfg, bb, ins, code - cfg->native_code);
+
+				if (cfg->compile_aot){
+					NOT_IMPLEMENTED;
+				}
+				else{
+					MonoInst *var = cfg->arch.bp_tramp_var;
+					g_assert (var);
+					g_assert (var->opcode == OP_REGOFFSET);
+					/* Load the address of the bp trampoline into IP0 */
+					code = mono_riscv_emit_load (code, RISCV_T0, var->inst_basereg, var->inst_offset);
+					/* 
+					* A placeholder for a possible breakpoint inserted by
+					* mono_arch_set_breakpoint ().
+					*/
+					code = mono_riscv_emit_nop (code);
+				}
+				break;
+			}
 			case OP_NOP:
 				code = mono_riscv_emit_nop(code);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
@@ -2064,13 +2160,13 @@ mono_arch_clear_breakpoint (MonoJitInfo *ji, guint8 *ip)
 void
 mono_arch_start_single_stepping (void)
 {
-	NOT_IMPLEMENTED;
+	ss_trampoline = mini_get_single_step_trampoline ();
 }
 
 void
 mono_arch_stop_single_stepping (void)
 {
-	NOT_IMPLEMENTED;
+	ss_trampoline = NULL;
 }
 
 gboolean
@@ -2104,8 +2200,29 @@ mono_arch_skip_single_step (MonoContext *ctx)
 SeqPointInfo*
 mono_arch_get_seq_point_info (guint8 *code)
 {
-	NOT_IMPLEMENTED;
-	return NULL;
+	SeqPointInfo *info;
+	MonoJitInfo *ji;
+
+	mono_domain_lock (domain);
+	info = (SeqPointInfo*)g_hash_table_lookup (domain_jit_info (domain)->arch_seq_points,
+								code);
+	mono_domain_unlock (domain);
+
+	if (!info) {
+		ji = mono_jit_info_table_find (domain, code);
+		g_assert (ji);
+
+		info = g_malloc0 (sizeof (SeqPointInfo) + (ji->code_size / 4) * sizeof(guint8*));
+
+		info->ss_tramp_addr = &ss_trampoline;
+
+		mono_domain_lock (domain);
+		g_hash_table_insert (domain_jit_info (domain)->arch_seq_points,
+							 code, info);
+		mono_domain_unlock (domain);
+	}
+
+	return info;
 }
 #endif /* MONO_ARCH_SOFT_DEBUG_SUPPORTED */
 
