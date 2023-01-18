@@ -349,7 +349,7 @@ emit_thunk (guint8 *code, gconstpointer target)
 {
 	g_print("emit thunk at 0x%lx\n",code);
 	guint8 *p = code;
-	code = mono_riscv_emit_imm(code, RISCV_T0, target);
+	code = mono_riscv_emit_imm(code, RISCV_T0, (gsize)target);
 	riscv_jalr (code, RISCV_RA, RISCV_T0,0);
 	g_print("jalr ra, 0(t0)\n");
 
