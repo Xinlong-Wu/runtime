@@ -44,11 +44,18 @@ voidcall_reg: src1:i len:4 clob:c
 
 store_membase_reg: dest:b src1:i len:4
 storei1_membase_reg: dest:b src1:i len:4
+storei2_membase_reg: dest:b src1:i len:4
 storei4_membase_reg: dest:b src1:i len:4
+storei8_membase_reg: dest:b src1:i len:4
 
 load_membase: dest:i src1:b len:4
+loadu1_membase: dest:i src1:b len:4
+loadi1_membase: dest:i src1:b len:4
+loadu2_membase: dest:i src1:b len:4
+loadi2_membase: dest:i src1:b len:4
 loadu4_membase: dest:i src1:b len:4
 loadi4_membase: dest:i src1:b len:4
+loadi8_membase: dest:i src1:b len:4
 
 memory_barrier: len:4 clob:a
 
