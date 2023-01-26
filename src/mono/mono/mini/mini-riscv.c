@@ -334,9 +334,9 @@ guint8*
 mono_riscv_emit_destroy_frame (guint8 *code, int stack_offset){
 	g_assert("Check stack align\n" && (stack_offset == (stack_offset>>3)<<3));
 
-	mono_riscv_emit_load(code, RISCV_RA, RISCV_SP, stack_offset - sizeof(host_mgreg_t));
+	code = mono_riscv_emit_load(code, RISCV_RA, RISCV_SP, stack_offset - sizeof(host_mgreg_t));
 	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
-	mono_riscv_emit_load(code, RISCV_S0, RISCV_SP, stack_offset - sizeof(host_mgreg_t)*2);
+	code = mono_riscv_emit_load(code, RISCV_S0, RISCV_SP, stack_offset - sizeof(host_mgreg_t)*2);
 	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
 	riscv_addi(code, RISCV_SP, RISCV_SP, stack_offset);
 	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
