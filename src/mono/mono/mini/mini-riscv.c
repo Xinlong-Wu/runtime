@@ -1352,6 +1352,8 @@ loop_start:
 			case OP_LOAD_MEMBASE:
 			case OP_LOADI1_MEMBASE:
 			case OP_LOADU1_MEMBASE:
+			case OP_LOADI2_MEMBASE:
+			case OP_LOADU2_MEMBASE:
 			case OP_LOADI4_MEMBASE:
 			case OP_LOADU4_MEMBASE:
 			case OP_LOADI8_MEMBASE:
@@ -1451,7 +1453,7 @@ mono_riscv_emit_imm (guint8 *code, int rd, gsize imm)
 #ifdef TARGET_RISCV64
 	if (RISCV_VALID_I_IMM (imm)) {
 		riscv_addi (code, rd, RISCV_ZERO, imm);
-		g_print("addi %s, X0, %x\n",mono_arch_regname(rd), imm);
+		// g_print("addi %s, X0, %x\n",mono_arch_regname(rd), imm);
 		return code;
 	}
 
@@ -1475,10 +1477,10 @@ mono_riscv_emit_imm (guint8 *code, int rd, gsize imm)
 		// if Hi is 0 or overflow, skip
 		if(Hi < 0xfffff){
 			riscv_lui(code, rd, Hi);
-			g_print("lui %s, %x\n",mono_arch_regname(rd), Hi);
+			// g_print("lui %s, %x\n",mono_arch_regname(rd), Hi);
 		}
 		riscv_addiw(code, rd, rd, Lo);
-		g_print("addiw %s, %s, %x\n",mono_arch_regname(rd),mono_arch_regname(rd), Lo);
+		// g_print("addiw %s, %s, %x\n",mono_arch_regname(rd),mono_arch_regname(rd), Lo);
 	}
 
 	/*
@@ -1489,7 +1491,7 @@ mono_riscv_emit_imm (guint8 *code, int rd, gsize imm)
 	*(guint64 *) code = imm;
 	code += sizeof (guint64);
 	riscv_ld (code, rd, rd, 0);
-	g_print("load  %s, %s, 0x%lx\n",mono_arch_regname(rd), mono_arch_regname(rd), imm);
+	// g_print("load  %s, %s, 0x%lx\n",mono_arch_regname(rd), mono_arch_regname(rd), imm);
 #else
 	if (RISCV_VALID_I_IMM (imm)) {
 		riscv_addi (code, rd, RISCV_ZERO, imm);
