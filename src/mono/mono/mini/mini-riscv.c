@@ -334,9 +334,9 @@ guint8*
 mono_riscv_emit_destroy_frame (guint8 *code, int stack_offset){
 	g_assert("Check stack align\n" && (stack_offset == (stack_offset>>3)<<3));
 
-	code = mono_riscv_emit_load(code, RISCV_RA, RISCV_SP, stack_offset - sizeof(host_mgreg_t));
+	code = mono_riscv_emit_load(code, RISCV_RA, RISCV_SP, stack_offset - sizeof(host_mgreg_t), 0);
 	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
-	code = mono_riscv_emit_load(code, RISCV_S0, RISCV_SP, stack_offset - sizeof(host_mgreg_t)*2);
+	code = mono_riscv_emit_load(code, RISCV_S0, RISCV_SP, stack_offset - sizeof(host_mgreg_t)*2, 0);
 	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
 	riscv_addi(code, RISCV_SP, RISCV_SP, stack_offset);
 	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
@@ -1509,25 +1509,44 @@ mono_riscv_emit_nop (guint8 *code){
 }
 
 // Uses at most 16 bytes on RV32I and 24 bytes on RV64I.
+// length == 0 means dont care
 guint8 *
-mono_riscv_emit_load (guint8 *code, int rd, int rs1, gint32 imm)
+mono_riscv_emit_load (guint8 *code, int rd, int rs1, gint32 imm, int length)
 {
-	if (RISCV_VALID_I_IMM (imm)) {
+	if (!RISCV_VALID_S_IMM (imm)){
+		code = mono_riscv_emit_imm (code, RISCV_T6, imm);
+		riscv_add (code, RISCV_T6, rs1, RISCV_T6);
+		rs1 = RISCV_T6;
+		imm = 0;
+	}
+
+	switch (length)
+	{
+	case 0:
 #ifdef TARGET_RISCV64
 		riscv_ld (code, rd, rs1, imm);
 #else
 		riscv_lw (code, rd, rs1, imm);
 #endif
-	} else {
-		code = mono_riscv_emit_imm (code, rd, imm);
-		riscv_add (code, rd, rs1, rd);
+		break;
+	case 1:
+		riscv_lb (code, rd, rs1, imm);
+		break;
+	case 4:
+		riscv_lh (code, rd, rs1, imm);
+		break;
+	case 8:
+		riscv_lw (code, rd, rs1, imm);
+		break;
 #ifdef TARGET_RISCV64
-		riscv_ld (code, rd, rd, 0);
-#else
-		riscv_lw (code, rd, rd, 0);
+	case 16:
+		riscv_lw (code, rd, rs1, imm);
+		break;
 #endif
+	default:
+		g_assert_not_reached();
+		break;
 	}
-
 	return code;
 }
 
@@ -1572,7 +1591,7 @@ mono_riscv_emit_store (guint8 *code, int rs2, int rs1, gint32 imm, int length)
 #ifdef TARGET_RISCV64
 		riscv_sd (code, rs2, rs1, imm);
 #else
-		riscv_sw (code, rs2, rs1, imm);
+		riscv_sd (code, rs2, rs1, imm);
 #endif
 		break;
 	case 1:
@@ -1642,7 +1661,7 @@ emit_load_regset (guint8 *code, guint64 regs, int basereg, int offset){
 
 	for (i = 0; i < 32; ++i) {
 		if (regs & (1 << i)) {
-			code = mono_riscv_emit_load(code, i, basereg, -(offset + (pos * sizeof(host_mgreg_t))));
+			code = mono_riscv_emit_load(code, i, basereg, -(offset + (pos * sizeof(host_mgreg_t))), 0);
 		}
 	}
 
@@ -1951,9 +1970,9 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 					g_assert (var->opcode == OP_REGOFFSET);
 					/* Load ss_tramp_var */
 					/* This is equal to &ss_trampoline */
-					code = mono_riscv_emit_load(code, RISCV_T0, var->inst_basereg, var->inst_offset);
+					code = mono_riscv_emit_load(code, RISCV_T0, var->inst_basereg, var->inst_offset, 0);
 					/* Load the trampoline address */
-					code = mono_riscv_emit_load(code, RISCV_T0, RISCV_T0, 0);
+					code = mono_riscv_emit_load(code, RISCV_T0, RISCV_T0, 0, 0);
 					/* Call it if it is non-null */
 					// In riscv, we use jalr to jump
 					riscv_beq(code, RISCV_ZERO, RISCV_T0, 8);
@@ -1969,7 +1988,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 					g_assert (var);
 					g_assert (var->opcode == OP_REGOFFSET);
 					/* Load the address of the bp trampoline into IP0 */
-					code = mono_riscv_emit_load (code, RISCV_T0, var->inst_basereg, var->inst_offset);
+					code = mono_riscv_emit_load (code, RISCV_T0, var->inst_basereg, var->inst_offset, 0);
 					/* 
 					* A placeholder for a possible breakpoint inserted by
 					* mono_arch_set_breakpoint ().
@@ -1984,7 +2003,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				break;
 			case OP_LOAD_MEMBASE:
 			case OP_LOADU4_MEMBASE:
-				code = mono_riscv_emit_load(code, ins->dreg, ins->sreg1, ins->inst_offset);
+				code = mono_riscv_emit_load(code, ins->dreg, ins->sreg1, ins->inst_offset, 0);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
 			case OP_STORE_MEMBASE_REG:
