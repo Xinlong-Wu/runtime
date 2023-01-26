@@ -8,5 +8,9 @@ namespace HelloWorld
     {
       return 1;
     }
+
+    static int test(int i){
+      return i;
+    }
   }
 }
