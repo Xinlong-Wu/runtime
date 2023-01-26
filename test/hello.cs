@@ -4,9 +4,9 @@ namespace HelloWorld
 {
   class Program
   {
-    static void Main()
+    static int Main(string[] args)
     {
-      Console.WriteLine("Hello World!");    
+      return 1;
     }
   }
 }
