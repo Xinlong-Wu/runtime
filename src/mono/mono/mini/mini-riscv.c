@@ -1609,6 +1609,7 @@ mono_riscv_emit_store (guint8 *code, int rs2, int rs1, gint32 imm, int length)
 		g_assert_not_reached();
 		break;
 	}
+	g_print("Store%d %s, %d(%s)\n", length, mono_arch_regname(rs2), imm, mono_arch_regname(rs1));
 	return code;
 }
 
@@ -1714,6 +1715,8 @@ emit_store_stack (guint8 *code, guint64 regs, int basereg, int offset){
 		if (regs & (1 << i)) {
 			code = mono_riscv_emit_store (code, i, basereg, -(offset + (pos * sizeof(host_mgreg_t))), 0);
 		}
+
+		pos++;
 	}
 	return code;
 }
@@ -1861,6 +1864,7 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 	if (cfg->param_area) {
 		/* The param area is below the frame pointer */
 		riscv_addi(code, RISCV_SP, RISCV_SP, -cfg->param_area);
+		MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 	}
 
 	if (cfg->method->save_lmf){
