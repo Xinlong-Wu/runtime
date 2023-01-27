@@ -1643,17 +1643,52 @@ mono_riscv_emit_call (MonoCompile *cfg, guint8* code, MonoJumpInfoType patch_typ
 	return code;
 }
 
+/*
+ * emit_load_regarray:
+ *
+ *   Emit code to load the registers in REGS from the appropriate elements of
+ * a register array at BASEREG+OFFSET.
+ */
+guint8*
+emit_load_regarray (guint8 *code, guint64 regs, int basereg, int offset){
+	int i;
+
+	if (!RISCV_VALID_S_IMM (offset)){
+		code = mono_riscv_emit_imm (code, RISCV_T6, offset);
+		riscv_add (code, RISCV_T6, basereg, RISCV_T6);
+		basereg = RISCV_T6;
+		offset = 0;
+	}
+
+	for (i = 0; i < 32; ++i){
+		if (regs & (1 << i)) {
+			if(i == RISCV_SP)
+				g_assert_not_reached ();
+			code = mono_riscv_emit_load (code, i, basereg, offset + (i * sizeof(host_mgreg_t)), 0);
+		}
+	}
+
+	return code;
+}
+
 
 /*
- * emit_load_regset:
+ * emit_load_stack:
  *
- *   Emit code to load the registers in REGS from consecutive memory locations starting
+ *   Emit code to load the registers in REGS from stack or consecutive memory locations starting
  * at BASEREG+OFFSET.
  */
 guint8*
-emit_load_regset (guint8 *code, guint64 regs, int basereg, int offset){
+emit_load_stack (guint8 *code, guint64 regs, int basereg, int offset){
 	int i;
 	int pos = 0;
+
+	if (!RISCV_VALID_S_IMM (offset)){
+		code = mono_riscv_emit_imm (code, RISCV_T6, offset);
+		riscv_add (code, RISCV_T6, basereg, RISCV_T6);
+		basereg = RISCV_T6;
+		offset = 0;
+	}
 
 	for (i = 0; i < 32; ++i) {
 		if (regs & (1 << i)) {
@@ -1881,10 +1916,10 @@ mono_arch_emit_epilog (MonoCompile *cfg)
 	code = realloc_code (cfg, max_epilog_size);
 
 	if (cfg->method->save_lmf) {
-		g_assert_not_reached();
+		code = mono_arm_emit_load_regarray (code, MONO_ARCH_CALLEE_SAVED_REGS & cfg->used_int_regs, RISCV_SP, cfg->lmf_var->inst_offset + MONO_STRUCT_OFFSET (MonoLMF, gregs) - (MONO_ARCH_FIRST_LMF_REG * 8));
 	} else {
 		/* Restore gregs */
-		code = emit_load_regset (code, MONO_ARCH_CALLEE_SAVED_REGS & cfg->used_int_regs, RISCV_SP, cfg->stack_offset);
+		code = emit_load_stack (code, MONO_ARCH_CALLEE_SAVED_REGS & cfg->used_int_regs, RISCV_SP, cfg->stack_offset);
 	}
 	
 	/* Load returned vtypes into registers if needed */

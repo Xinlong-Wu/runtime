@@ -57,6 +57,7 @@
 #define MONO_ARCH_CALLEE_REGS        (0b11110000000000111111110000000000)
 #define MONO_ARCH_CALLEE_SAVED_REGS  (0b00001111111111000000001100000000)
 #define MONO_ARCH_IS_CALLEE_SAVED_REG(reg) (MONO_ARCH_CALLEE_SAVED_REGS & (1 << (reg)))
+#define MONO_ARCH_FIRST_LMF_REG RISCV_S0
 
 #ifdef RISCV_FPABI_SOFT
 
@@ -284,10 +285,13 @@ __attribute__ ((__warn_unused_result__)) guint8*
 mono_riscv_emit_destroy_frame (guint8 *code, int stack_offset);
 
 __attribute__ ((warn_unused_result)) guint8 *
-emit_store_regset (guint8 *code, guint64 regs, int basereg, int offset);
+emit_store_stack (guint8 *code, guint64 regs, int basereg, int offset);
 
 __attribute__ ((warn_unused_result)) guint8 *
-emit_load_regset (guint8 *code, guint64 used_regs, int basereg, int offset);
+emit_load_stack (guint8 *code, guint64 used_regs, int basereg, int offset);
+
+__attribute__ ((__warn_unused_result__)) guint8*
+emit_load_regarray (guint8 *code, guint64 regs, int basereg, int offset);
 
 void
 mono_riscv_patch (guint8 *code, guint8 *target, int relocation);
