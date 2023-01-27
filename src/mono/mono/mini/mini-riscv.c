@@ -1034,13 +1034,6 @@ mono_arch_emit_call (MonoCompile *cfg, MonoCallInst *call)
 
 	call->call_info = cinfo;
 	call->stack_usage = cinfo->stack_usage;
-
-	/* setup LMF */
-	if (cfg->method->save_lmf) {
-		MONO_INST_NEW (cfg, ins, OP_SAVE_LMF);
-		MONO_ADD_INS (cfg->cbb, ins);
-	}
-
 }
 
 void
@@ -1280,6 +1273,7 @@ loop_start:
 			case OP_I8CONST:
 			case OP_ICONST:
 			case OP_SHR_UN_IMM:
+			case OP_MOVE:
 
 			/* Atomic */
 			case OP_MEMORY_BARRIER:
@@ -1303,8 +1297,7 @@ loop_start:
 			/* Throw */
 			case OP_RETHROW:
 				if (ins->sreg1 != RISCV_A0){
-					NEW_INS (cfg, ins, temp, OP_ADD_IMM);
-					temp->inst_imm = 0;
+					NEW_INS (cfg, ins, temp, OP_MOVE);
 					temp->dreg = RISCV_A0;
 					temp->sreg1 = ins->sreg1;
 					ins->sreg1 = RISCV_A0;
@@ -1376,11 +1369,6 @@ loop_start:
 					ins->inst_imm = 0;
 					ins->opcode = OP_ADDCC;
 				}
-				break;
-			case OP_MOVE:
-				// mv ra, a1 -> addi ra, a1, 0
-				ins->opcode = OP_ADD_IMM;
-				ins->inst_imm = 0;
 				break;
 			case OP_LCOMPARE_IMM:
 			case OP_ICOMPARE_IMM:{
@@ -2007,6 +1995,11 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			}
 			case OP_NOP:
 				code = mono_riscv_emit_nop(code);
+				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+				break;
+			case OP_MOVE:
+				// mv ra, a1 -> addi ra, a1, 0
+				riscv_addi(code, ins->dreg, ins->sreg1, 0);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
 			case OP_LOAD_MEMBASE:

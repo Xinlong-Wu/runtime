@@ -59,6 +59,8 @@ loadi8_membase: dest:i src1:b len:4
 
 memory_barrier: len:4 clob:a
 
+move: dest:i src1:i len:4
+
 iconst: dest:i len:4
 i8const: dest:i len:4
 addcc: dest:i src1:i src2:i len:4
