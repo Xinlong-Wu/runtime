@@ -61,8 +61,8 @@ memory_barrier: len:4 clob:a
 
 move: dest:i src1:i len:4
 
-iconst: dest:i len:4
-i8const: dest:i len:4
+iconst: dest:i len:16
+i8const: dest:i len:16
 addcc: dest:i src1:i src2:i len:4
 add_imm: dest:i src1:i len:4
 long_add_imm: dest:i src1:i len:4
@@ -75,4 +75,4 @@ long_and_imm: dest:i src1:i len:4
 riscv_beq: src1:i src2:i len:4
 riscv_bne: src1:i src2:i len:4
 
-gc_safe_point: src1:i len:4 clob:c
+gc_safe_point: src1:i len:12 clob:c
