@@ -1476,7 +1476,7 @@ mono_riscv_emit_imm (guint8 *code, int rd, gsize imm)
 	 * This is not pretty, but RV64I doesn't make it easy to load constants.
 	 * Need to figure out something better.
 	 */
-	riscv_jal (code, rd, sizeof (guint64));
+	riscv_jal (code, rd, sizeof (guint64) + 4);
 	*(guint64 *) code = imm;
 	code += sizeof (guint64);
 	riscv_ld (code, rd, rd, 0);
