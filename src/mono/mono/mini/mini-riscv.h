@@ -224,6 +224,7 @@ typedef enum {
 	 * Vtype passed in consecutive int registers.
 	 */
 	ArgVtypeByRef,
+	ArgVtypeByRefOnStack,
 	ArgVtypeOnStack,
 	ArgVtypeInIReg,
 	ArgNone // only in void return type

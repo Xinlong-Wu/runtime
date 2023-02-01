@@ -1771,7 +1771,38 @@ emit_move_args (MonoCompile *cfg, guint8 *code){
 		ainfo = cinfo->args + i;
 		ins = cfg->args [i];
 
-		NOT_IMPLEMENTED;
+		if (ins->opcode == OP_REGVAR){
+			switch (ainfo->storage){
+				case ArgInIReg:
+					riscv_addi(code, ins->dreg, ainfo->reg, 0);
+					MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+					if (i == 0 && sig->hasthis){
+						mono_add_var_location (cfg, ins, TRUE, ainfo->reg, 0, 0, code - cfg->native_code);
+						mono_add_var_location (cfg, ins, TRUE, ins->dreg, 0, code - cfg->native_code, 0);
+					}
+					break;
+				
+				default:
+					NOT_IMPLEMENTED;
+			}
+		}
+		else{
+			if (ainfo->storage != ArgVtypeByRef && ainfo->storage != ArgVtypeByRefOnStack)
+				g_assert (ins->opcode == OP_REGOFFSET);
+			
+			switch (ainfo->storage){
+				case ArgInIReg:
+					code = mono_riscv_emit_store(code, ainfo->reg, ins->inst_basereg, ins->inst_offset, 0);
+					MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+					if (i == 0 && sig->hasthis) {
+						mono_add_var_location (cfg, ins, TRUE, ainfo->reg, 0, 0, code - cfg->native_code);
+						mono_add_var_location (cfg, ins, FALSE, ins->inst_basereg, ins->inst_offset, code - cfg->native_code, 0);
+					}
+					break;
+				default:
+					NOT_IMPLEMENTED;
+			}
+		}
 	}
 
 	return code;
