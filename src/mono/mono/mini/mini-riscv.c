@@ -617,6 +617,8 @@ get_call_info(MonoMemPool *mp, MonoMethodSignature *sig){
 	else
 		cinfo = g_malloc0 (sizeof (CallInfo) + (sizeof (ArgInfo) * paramNum));
 
+	cinfo->nargs = paramNum;
+
 	// return value
 	cinfo->next_areg = RISCV_A0;
 	add_param (cinfo, &cinfo->ret, sig->ret);
