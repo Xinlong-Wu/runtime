@@ -1308,12 +1308,17 @@ loop_start:
 			case OP_STORE_MEMBASE_IMM:
 			case OP_STOREI1_MEMBASE_IMM:
 			case OP_STOREI4_MEMBASE_IMM:{
-				// generate a new Inst to store the Imm to the Reg
-				NEW_INS (cfg, ins, temp, OP_ICONST);
-				temp->inst_c0 = ins->inst_imm;
-				temp->dreg = mono_alloc_ireg (cfg);
+				if(ins->inst_imm != 0){
+					NEW_INS (cfg, ins, temp, OP_ICONST);
+					temp->inst_c0 = ins->inst_imm;
+					temp->dreg = mono_alloc_ireg (cfg);
+					
+					ins->sreg1 = temp->dreg;
+				}
+				else{
+					ins->sreg1 = RISCV_ZERO;
+				}
 				
-				ins->sreg1 = temp->dreg;
 				switch (ins->opcode){
 					case OP_STORE_MEMBASE_IMM:
 						ins->opcode = OP_STORE_MEMBASE_REG;
