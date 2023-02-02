@@ -1305,6 +1305,7 @@ loop_start:
 				break;
 			
 			/* Throw */
+			case OP_THROW:
 			case OP_RETHROW:
 				if (ins->sreg1 != RISCV_A0){
 					NEW_INS (cfg, ins, temp, OP_MOVE);

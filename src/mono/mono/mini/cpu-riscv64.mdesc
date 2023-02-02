@@ -34,6 +34,7 @@ dummy_use: src1:i len:0
 il_seq_point: len:0
 seq_point: len:0
 
+throw: src1:i len:4
 rethrow: src1:i len:4
 get_ex_obj: dest:i len:4
 
