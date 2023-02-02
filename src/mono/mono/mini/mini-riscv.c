@@ -1070,9 +1070,13 @@ void
 mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 {
 	switch (ins->opcode) {
+		case OP_LADD:
 		case OP_LADD_IMM:
+		case OP_LAND_IMM:
+		case OP_LCONV_TO_I:
 			break;
 		default:
+			g_print("Can't decompose the OP %s\n",mono_inst_name (ins->opcode));
 			NOT_IMPLEMENTED;
 	}
 }
