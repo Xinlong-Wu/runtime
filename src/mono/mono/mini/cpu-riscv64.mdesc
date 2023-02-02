@@ -58,6 +58,7 @@ loadi4_membase: dest:i src1:b len:4
 loadi8_membase: dest:i src1:b len:4
 
 memory_barrier: len:4 clob:a
+atomic_store_i4: dest:i src1:i len:4
 
 move: dest:i src1:i len:4
 
@@ -74,5 +75,6 @@ long_and_imm: dest:i src1:i len:4
 
 riscv_beq: src1:i src2:i len:4
 riscv_bne: src1:i src2:i len:4
+riscv_bge: src1:i src2:i len:4
 
 gc_safe_point: src1:i len:12 clob:c
