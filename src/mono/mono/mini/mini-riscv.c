@@ -1680,6 +1680,33 @@ emit_load_regarray (guint8 *code, guint64 regs, int basereg, int offset){
 	return code;
 }
 
+/*
+ * emit_store_regarray:
+ *
+ *   Emit code to store the registers in REGS from the appropriate elements of
+ * a register array at BASEREG+OFFSET.
+ */
+guint8*
+emit_store_regarray (guint8 *code, guint64 regs, int basereg, int offset){
+	int i;
+
+	if (!RISCV_VALID_S_IMM (offset)){
+		code = mono_riscv_emit_imm (code, RISCV_T6, offset);
+		riscv_add (code, RISCV_T6, basereg, RISCV_T6);
+		basereg = RISCV_T6;
+		offset = 0;
+	}
+
+	for (i = 0; i < 32; ++i){
+		if (regs & (1 << i)) {
+			if(i == RISCV_SP)
+				g_assert_not_reached ();
+			code = mono_riscv_emit_store (code, i, basereg, offset + (i * sizeof(host_mgreg_t)), 0);
+		}
+	}
+
+	return code;
+}
 
 /*
  * emit_load_stack:

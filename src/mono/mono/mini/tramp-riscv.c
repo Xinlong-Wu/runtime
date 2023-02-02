@@ -9,6 +9,7 @@
 
 #include <mono/metadata/abi-details.h>
 #include <mono/metadata/components.h>
+#include "mono/utils/mono-tls-inline.h"
 
 void
 mono_arch_patch_callsite (guint8 *method_start, guint8 *code_ptr, guint8 *addr)
@@ -65,17 +66,259 @@ guchar *
 mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInfo **info,
                                      gboolean aot)
 {
-	if (aot)
-		NOT_IMPLEMENTED;
+	int i, buf_len, imm;
+	int frame_size, offset, gregs_offset, num_fregs, fregs_offset, arg_offset, lmf_offset, res_offset;
+	guint64 gregs_regset;
+	GSList *unwind_ops = NULL;
+	MonoJumpInfo *ji = NULL;
+	const char *tramp_name;
 
-	guint8 *buf = mono_global_codeman_reserve (1024), *code = buf;
+	buf_len = 1024;
+	guint8 *buf = mono_global_codeman_reserve (buf_len), *code = buf;
+	guint8 *tramp, *labels [16];
+	
+	/*
+	 * We are getting called by a specific trampoline, 
+	 * T0 contains the trampoline argument，T1 is address of tramp code.
+	 */
+	/* Compute stack frame size and offsets */
+	offset = 0;
+	/* frame block */
+	offset += 2 * sizeof(host_mgreg_t);
+	/* gregs */
+	gregs_offset = offset;
+	offset += 32 * sizeof(host_mgreg_t);
+	// FIXME: Save 128 bits
+	/* fregs */
+	/* Only have to save the argument regs */
+	if(riscv_stdext_d || riscv_stdext_f){
+		num_fregs = 32;
+		fregs_offset = offset;
+		offset += num_fregs * sizeof(host_mgreg_t);
+	}
+	/* arg */
+	arg_offset = offset;
+	offset += sizeof(host_mgreg_t);
+	/* result */
+	res_offset = offset;
+	offset += sizeof(host_mgreg_t);
+	/* LMF */
+	lmf_offset = offset;
+	offset += sizeof (MonoLMF);
+	frame_size = ALIGN_TO (offset, MONO_ARCH_FRAME_ALIGNMENT);
 
-	if (info) {
-		const char *name = mono_get_generic_trampoline_name (tramp_type);
-		*info = mono_tramp_info_create (name, buf, code - buf, NULL, NULL);
+	MINI_BEGIN_CODEGEN ();
+
+	/* Setup stack frame */
+	imm = frame_size;
+	mono_add_unwind_op_def_cfa (unwind_ops, code, buf, RISCV_SP, 0);
+
+	g_assert(RISCV_VALID_I_IMM(-imm));
+
+	riscv_addi(code, RISCV_SP, RISCV_SP, -imm);
+	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
+	mono_add_unwind_op_def_cfa_offset (unwind_ops, code, buf, frame_size);
+
+	code = mono_riscv_emit_store(code, RISCV_RA, RISCV_SP, imm - sizeof(host_mgreg_t), 0);
+	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
+	mono_add_unwind_op_offset (unwind_ops, code, buf, RISCV_RA, sizeof(host_mgreg_t));
+	code = mono_riscv_emit_store(code, RISCV_S0, RISCV_SP, imm - sizeof(host_mgreg_t) * 2, 0);
+	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
+	mono_add_unwind_op_offset (unwind_ops, code, buf, RISCV_S0, sizeof(host_mgreg_t) * 2);
+
+	riscv_addi (code, RISCV_S0, RISCV_SP, imm);
+	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
+
+	/* Save gregs */
+	gregs_regset = ~((1 << RISCV_FP) | (1 << RISCV_SP));
+	code = emit_store_regarray (code, gregs_regset, RISCV_FP, gregs_offset);
+
+	/* Save fregs */
+	if(riscv_stdext_d || riscv_stdext_f){
+		for (i = 0; i < num_fregs; ++i)
+			code = mono_riscv_emit_fstore (code, RISCV_F0 + i, RISCV_FP, fregs_offset + (i * sizeof(host_mgreg_t)));
 	}
 
-	return buf;
+	/* Save trampoline arg */
+	code = mono_riscv_emit_store (code, RISCV_T1, RISCV_FP, arg_offset, 0);
+
+	/* Setup LMF */
+	riscv_addi(code, RISCV_T2, RISCV_FP, -lmf_offset);
+	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
+	code = emit_store_stack (code, MONO_ARCH_CALLEE_SAVED_REGS, RISCV_T2, MONO_STRUCT_OFFSET (MonoLMF, gregs));
+
+	/* Save caller fp */
+	code = mono_riscv_emit_load(code, RISCV_T1, RISCV_FP, -sizeof(host_mgreg_t) * 2, 0);
+	code = mono_riscv_emit_store(code, RISCV_T1, RISCV_T2, MONO_STRUCT_OFFSET (MonoLMF, fp), 0);
+
+	/* Save caller sp */
+	riscv_addi(code, RISCV_T3, RISCV_FP, 0);
+	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
+	code = mono_riscv_emit_imm (code, RISCV_T3, frame_size);
+	code = mono_riscv_emit_store(code, RISCV_T3, RISCV_T2, MONO_STRUCT_OFFSET (MonoLMF, sp), 0);
+
+	/* Save caller pc */
+	if (tramp_type == MONO_TRAMPOLINE_JUMP)
+		riscv_addi(code, RISCV_RA, RISCV_ZERO, 0);
+	else
+		code = mono_riscv_emit_load(code, RISCV_RA, RISCV_FP, -sizeof(host_mgreg_t), 0);
+	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
+	code = mono_riscv_emit_store(code, RISCV_RA, RISCV_T2, MONO_STRUCT_OFFSET (MonoLMF, pc), 0);
+
+	/* Save LMF */
+	/* Similar to emit_save_lmf () */
+	if (aot){
+		NOT_IMPLEMENTED;
+	} else {
+		tramp = (guint8*)mono_get_lmf_addr;
+		code = mono_riscv_emit_imm(code,  RISCV_T0, (guint64)tramp);
+	}
+	riscv_jalr (code, RISCV_RA, RISCV_T0, 0);
+	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
+
+	/* a0 contains the address of the tls slot holding the current lmf */
+	/* T0 = lmf */
+	code = mono_riscv_emit_imm(code,  RISCV_T0, lmf_offset);
+
+	/* lmf->lmf_addr = lmf_addr */
+	code = mono_riscv_emit_store(code, RISCV_A0, RISCV_T0, MONO_STRUCT_OFFSET (MonoLMF, lmf_addr), 0);
+
+	/* lmf->previous_lmf = *lmf_addr */
+	code = mono_riscv_emit_load(code, RISCV_T1, RISCV_A0, 0, 0);
+	code = mono_riscv_emit_store(code, RISCV_T1, RISCV_T0, MONO_STRUCT_OFFSET (MonoLMF, previous_lmf), 0);
+
+	/* *lmf_addr = lmf */
+	code = mono_riscv_emit_store(code, RISCV_T0, RISCV_A0, 0, 0);
+
+	/* Call the C trampoline function */
+	/* Arg 1 = gregs */
+	riscv_addi(code, RISCV_A0, RISCV_FP, gregs_offset);
+	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
+	/* Arg 2 = caller */
+	if (tramp_type == MONO_TRAMPOLINE_JUMP){
+		riscv_addi(code, RISCV_A1, RISCV_ZERO, 0);
+		MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
+	}
+	else{
+		code = mono_riscv_emit_load(code, RISCV_A1, RISCV_FP, gregs_offset + (RISCV_RA * sizeof(host_mgreg_t)), 0);
+	}
+	/* Arg 3 = arg */
+	if (MONO_TRAMPOLINE_TYPE_HAS_ARG (tramp_type)){
+		/* Passed in a0 */
+		code = mono_riscv_emit_load(code, RISCV_A2, RISCV_FP, gregs_offset + (RISCV_A0 * sizeof(host_mgreg_t)), 0);
+	}
+	else{
+		code = mono_riscv_emit_load(code, RISCV_A2, RISCV_FP, arg_offset, 0);
+	}
+	/* Arg 4 = trampoline addr */
+	// TODO: Fix me, there is no reference in tramp-arm64.c
+	riscv_addi(code, RISCV_A3, RISCV_ZERO, 0);
+	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
+
+	if (aot) {
+		NOT_IMPLEMENTED;
+	}
+	else{
+		tramp = (guint8*)mono_get_trampoline_func (tramp_type);
+		code = mono_riscv_emit_imm(code, RISCV_T0, (guint64)tramp);
+	}
+	riscv_jalr(code, RISCV_RA, RISCV_T0, 0);
+	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
+
+	/* Save the result */
+	code = mono_riscv_emit_store(code, RISCV_A0, RISCV_FP, res_offset, 0);
+
+	/* Restore LMF */
+	/* Similar to emit_restore_lmf () */
+	/* Clobbers T0/T1 */
+	/* T0 = lmf */
+	riscv_addi(code, RISCV_T0, RISCV_FP, lmf_offset);
+	/* T1 = lmf->previous_lmf */
+	code = mono_riscv_emit_load(code, RISCV_T1, RISCV_T0, MONO_STRUCT_OFFSET (MonoLMF, previous_lmf), 0);
+	/* T0 = lmf->lmf_addr */
+	code = mono_riscv_emit_load(code, RISCV_T0, RISCV_T0, MONO_STRUCT_OFFSET (MonoLMF, lmf_addr), 0);
+	/* *lmf_addr = previous_lmf */
+	code = mono_riscv_emit_store(code, RISCV_T1, RISCV_T0, 0, 0);
+
+	/* Check for thread interruption */
+	/* This is not perf critical code so no need to check the interrupt flag */
+	if (aot) {
+		NOT_IMPLEMENTED;
+	}
+	else{
+		code = mono_riscv_emit_imm(code, RISCV_T0, (guint64)mono_thread_force_interruption_checkpoint_noraise);
+	}
+	riscv_jalr(code, RISCV_RA, RISCV_T0, 0);
+	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
+
+	/* Check whenever there is an exception to be thrown */
+	labels [0] = code;
+	riscv_bne(code, RISCV_A0, RISCV_ZERO, 0);
+	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
+
+	/* Normal case */
+
+	/* Restore gregs */
+	/* Only have to load the argument MONO_ARCH_CALLEE_REGS (a0..a7) and the rgctx reg */
+	code = emit_load_regarray(code, (MONO_ARCH_ARGUMENT_REGS | (1 << RISCV_RA) | (1 << MONO_ARCH_RGCTX_REG)), RISCV_FP, gregs_offset);
+	/* Restore fregs */
+	if(riscv_stdext_d || riscv_stdext_f){
+		for (i = 0; i < num_fregs; ++i)
+			code = mono_riscv_emit_fstore (code, RISCV_F0 + i, RISCV_FP, fregs_offset + (i * sizeof(host_mgreg_t)));
+	}
+
+	/* Load the result */
+	code = mono_riscv_emit_load(code, RISCV_T1, RISCV_FP, res_offset, 0);
+	/* These trampolines return a value */
+	if (tramp_type == MONO_TRAMPOLINE_RGCTX_LAZY_FETCH){
+		riscv_addi(code, RISCV_A0, RISCV_T1, 0);
+		MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
+	}
+
+	/* Cleanup frame */
+	code = mono_riscv_emit_destroy_frame(code, frame_size);
+
+	if (tramp_type == MONO_TRAMPOLINE_RGCTX_LAZY_FETCH){
+		riscv_jalr(code, RISCV_ZERO, RISCV_RA, 0);
+	}
+	else{
+		riscv_jalr(code, RISCV_ZERO, RISCV_T1, 0);
+	}
+	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
+
+	/* Exception case */
+	mono_riscv_patch(labels [0], code, MONO_R_RISCV_BNE);
+
+	/*
+	 * We have an exception we want to throw in the caller's frame, so pop
+	 * the trampoline frame and throw from the caller.
+	 */
+	code = mono_riscv_emit_destroy_frame(code, frame_size);
+	/* We are in the parent frame, the exception is in A0 */
+	/*
+	 * EH is initialized after trampolines, so get the address of the variable
+	 * which contains throw_exception, and load it from there.
+	 */
+	if (aot) {
+		NOT_IMPLEMENTED;
+	}
+	else{
+		code = mono_riscv_emit_imm(code, RISCV_T0, (guint64)mono_get_rethrow_preserve_exception_addr ());
+	}
+	code = mono_riscv_emit_load(code, RISCV_T0, RISCV_T0, 0, 0);
+	/* RA contains the return address, the trampoline will use it as the throw site */
+	riscv_jalr(code, RISCV_ZERO, RISCV_T0, 0);
+
+	g_assert ((code - buf) < buf_len);
+
+	MINI_END_CODEGEN (buf, code - buf, MONO_PROFILER_CODE_BUFFER_HELPER, NULL);
+
+	if (info) {
+		tramp_name = mono_get_generic_trampoline_name (tramp_type);
+		*info = mono_tramp_info_create (tramp_name, buf, code - buf, ji, unwind_ops);
+	}
+
+	return (guchar*)MINI_ADDR_TO_FTNPTR (buf);
 }
 
 gpointer

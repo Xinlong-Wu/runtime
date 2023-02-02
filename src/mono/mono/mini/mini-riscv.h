@@ -60,9 +60,13 @@ extern gboolean riscv_stdext_a, riscv_stdext_b, riscv_stdext_c,
  * - x0 is hard-wired to zero and can't be allocated by the register allocator.
  */
 
+#define MONO_ARCH_ARGUMENT_REGS		 (0b00000000000000111111110000000000)
 #define MONO_ARCH_CALLEE_REGS        (0b11110000000000111111110000000000)
 #define MONO_ARCH_CALLEE_SAVED_REGS  (0b00001111111111000000001100000000)
 #define MONO_ARCH_IS_CALLEE_SAVED_REG(reg) (MONO_ARCH_CALLEE_SAVED_REGS & (1 << (reg)))
+/* callee saved regs */
+#define MONO_ARCH_NUM_LMF_REGS (12)
+
 #define MONO_ARCH_FIRST_LMF_REG RISCV_S0
 
 #ifdef RISCV_FPABI_SOFT
@@ -195,10 +199,11 @@ struct MonoLMF {
 	// If the second-lowest bit of this field is set, this is a MonoLMFExt.
 	gpointer previous_lmf;
 	gpointer lmf_addr;
-	target_mgreg_t pc;
-	target_mgreg_t sp;
-	target_mgreg_t ra;
-	target_mgreg_t gregs [RISCV_N_GSREGS]; // s0..s11
+	host_mgreg_t pc;
+	host_mgreg_t sp;
+	host_mgreg_t fp;
+	host_mgreg_t ra;
+	host_mgreg_t gregs [MONO_ARCH_NUM_LMF_REGS]; // s0..s11
 	double fregs [RISCV_N_FSREGS]; // fs0..fs11
 };
 
@@ -296,6 +301,9 @@ emit_store_stack (guint8 *code, guint64 regs, int basereg, int offset);
 
 __attribute__ ((warn_unused_result)) guint8 *
 emit_load_stack (guint8 *code, guint64 used_regs, int basereg, int offset);
+
+__attribute__ ((__warn_unused_result__)) guint8*
+emit_store_regarray (guint8 *code, guint64 regs, int basereg, int offset);
 
 __attribute__ ((__warn_unused_result__)) guint8*
 emit_load_regarray (guint8 *code, guint64 regs, int basereg, int offset);
