@@ -62,6 +62,10 @@ mono_arch_get_delegate_virtual_invoke_impl (MonoMethodSignature *sig,
 
 #ifndef DISABLE_JIT
 
+/*
+* Return a trampoline which calls generic trampoline TRAMP_TYPE passing in ARG1.
+* Pass the argument in T0, clobbering .
+*/
 guchar *
 mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInfo **info,
                                      gboolean aot)
@@ -140,7 +144,7 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 	}
 
 	/* Save trampoline arg */
-	code = mono_riscv_emit_store (code, RISCV_T1, RISCV_FP, arg_offset, 0);
+	code = mono_riscv_emit_store (code, RISCV_T0, RISCV_FP, arg_offset, 0);
 
 	/* Setup LMF */
 	riscv_addi(code, RISCV_T2, RISCV_FP, -lmf_offset);
@@ -148,13 +152,12 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 	code = emit_store_stack (code, MONO_ARCH_CALLEE_SAVED_REGS, RISCV_T2, MONO_STRUCT_OFFSET (MonoLMF, gregs));
 
 	/* Save caller fp */
-	code = mono_riscv_emit_load(code, RISCV_T1, RISCV_FP, -sizeof(host_mgreg_t) * 2, 0);
-	code = mono_riscv_emit_store(code, RISCV_T1, RISCV_T2, MONO_STRUCT_OFFSET (MonoLMF, fp), 0);
+	code = mono_riscv_emit_load(code, RISCV_T0, RISCV_FP, -sizeof(host_mgreg_t) * 2, 0);
+	code = mono_riscv_emit_store(code, RISCV_T0, RISCV_T2, MONO_STRUCT_OFFSET (MonoLMF, fp), 0);
 
 	/* Save caller sp */
-	riscv_addi(code, RISCV_T3, RISCV_FP, 0);
+	riscv_addi(code, RISCV_T3, RISCV_FP, -frame_size);
 	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
-	code = mono_riscv_emit_imm (code, RISCV_T3, frame_size);
 	code = mono_riscv_emit_store(code, RISCV_T3, RISCV_T2, MONO_STRUCT_OFFSET (MonoLMF, sp), 0);
 
 	/* Save caller pc */
@@ -171,14 +174,14 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 		NOT_IMPLEMENTED;
 	} else {
 		tramp = (guint8*)mono_get_lmf_addr;
-		code = mono_riscv_emit_imm(code,  RISCV_T0, (guint64)tramp);
+		code = mono_riscv_emit_imm(code,  RISCV_T1, (guint64)tramp);
 	}
-	riscv_jalr (code, RISCV_RA, RISCV_T0, 0);
+	riscv_jalr (code, RISCV_RA, RISCV_T1, 0);
 	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
 
 	/* a0 contains the address of the tls slot holding the current lmf */
 	/* T0 = lmf */
-	code = mono_riscv_emit_imm(code,  RISCV_T0, lmf_offset);
+	riscv_addi(code,  RISCV_T0, RISCV_FP, lmf_offset);
 
 	/* lmf->lmf_addr = lmf_addr */
 	code = mono_riscv_emit_store(code, RISCV_A0, RISCV_T0, MONO_STRUCT_OFFSET (MonoLMF, lmf_addr), 0);
@@ -329,6 +332,7 @@ mono_arch_create_specific_trampoline (gpointer arg1, MonoTrampolineType tramp_ty
 	guint8 *tramp = mono_get_trampoline_code (tramp_type);
 
 	// Pass the argument in scratch t0.
+	// clobbering t0-t3
 	code = mono_riscv_emit_imm (code, RISCV_T0, (gsize) arg1);
 	code = mono_riscv_emit_imm (code, RISCV_T1, (gsize) tramp);
 	riscv_jalr (code, RISCV_ZERO, RISCV_T1, 0);
