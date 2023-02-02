@@ -1729,6 +1729,7 @@ emit_load_stack (guint8 *code, guint64 regs, int basereg, int offset){
 	for (i = 0; i < 32; ++i) {
 		if (regs & (1 << i)) {
 			code = mono_riscv_emit_load(code, i, basereg, -(offset + (pos * sizeof(host_mgreg_t))), 0);
+			pos++;
 		}
 	}
 
@@ -1748,9 +1749,8 @@ emit_store_stack (guint8 *code, guint64 regs, int basereg, int offset){
 	for (i = 0; i < 32; ++i) {
 		if (regs & (1 << i)) {
 			code = mono_riscv_emit_store (code, i, basereg, -(offset + (pos * sizeof(host_mgreg_t))), 0);
+			pos++;
 		}
-
-		pos++;
 	}
 	return code;
 }
