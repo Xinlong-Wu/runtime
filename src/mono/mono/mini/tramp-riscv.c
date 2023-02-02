@@ -14,7 +14,9 @@
 void
 mono_arch_patch_callsite (guint8 *method_start, guint8 *code_ptr, guint8 *addr)
 {
-	NOT_IMPLEMENTED;
+	MINI_BEGIN_CODEGEN ();
+	mono_riscv_patch(code_ptr - 4, addr, MONO_R_RISCV_JAL);
+	MINI_END_CODEGEN (code_ptr - 4, 4, -1, NULL);
 }
 
 void
