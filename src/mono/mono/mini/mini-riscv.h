@@ -14,6 +14,12 @@
 #define MONO_RISCV_ARCHITECTURE "riscv32"
 #endif
 
+extern gboolean riscv_stdext_a, riscv_stdext_b, riscv_stdext_c,
+                riscv_stdext_d, riscv_stdext_f, riscv_stdext_j,
+                riscv_stdext_l, riscv_stdext_m, riscv_stdext_n,
+                riscv_stdext_p, riscv_stdext_q, riscv_stdext_t,
+                riscv_stdext_v;
+
 #if defined (RISCV_FPABI_SOFT)
 #define MONO_ARCH_SOFT_FLOAT_FALLBACK
 #define RISCV_FP_MODEL "soft-fp"
