@@ -1280,9 +1280,12 @@ loop_start:
 			case OP_ICONST:
 			case OP_SHR_UN_IMM:
 			case OP_MOVE:
+			case OP_LADD:
 
-			/* Atomic */
+			/* Atomic Ext */
 			case OP_MEMORY_BARRIER:
+			case OP_ATOMIC_STORE_I4:
+				break;
 			
 			/* skip dummy IL */
 			case OP_NOT_REACHED:
@@ -1293,6 +1296,7 @@ loop_start:
 			/* skip custom OP code*/
 			case OP_RISCV_BEQ:
 			case OP_RISCV_BNE:
+			case OP_RISCV_BGE:
 				break;
 
 			case OP_VOIDCALL_REG:
@@ -1383,27 +1387,39 @@ loop_start:
 				break;
 			case OP_LCOMPARE_IMM:
 			case OP_ICOMPARE_IMM:{
+				if(ins->inst_imm == 0){
+					ins->sreg2 = RISCV_ZERO;
+				}
+				else{
+					NOT_IMPLEMENTED;
+				}
+
+			case OP_LCOMPARE:				
 				if (ins->next){
 					if(ins->next->opcode == OP_LBEQ || ins->next->opcode == OP_IBEQ){
 						ins->next->opcode = OP_RISCV_BEQ;
-						ins->next->sreg2 = ins->sreg1;
+						ins->next->sreg1 = ins->sreg1;
+						ins->next->sreg2 = ins->sreg2;
 						NULLIFY_INS (ins);
 					}
 					else if(ins->next->opcode == OP_LBNE_UN || ins->next->opcode == OP_IBNE_UN){
 						ins->next->opcode = OP_RISCV_BNE;
-						ins->next->sreg2 = ins->sreg1;
+						ins->next->sreg1 = ins->sreg1;
+						ins->next->sreg2 = ins->sreg2;
+						NULLIFY_INS (ins);
+					}
+					else if(ins->next->opcode == OP_LBGE_UN || ins->next->opcode == OP_IBGE_UN){
+						ins->next->opcode = OP_RISCV_BGE;
+						ins->next->sreg1 = ins->sreg1;
+						ins->next->sreg2 = ins->sreg2;
 						NULLIFY_INS (ins);
 					}
 					else {
 						NOT_IMPLEMENTED;
 					}
-
-					if(ins->inst_imm == 0){
-						ins->next->sreg1 = RISCV_ZERO;
-					}
-					else{
-						NOT_IMPLEMENTED;
-					}
+				}
+				else{
+					g_assert_not_reached();
 				}
 				break;
 			}
