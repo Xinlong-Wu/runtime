@@ -65,7 +65,6 @@ move: dest:i src1:i len:4
 
 iconst: dest:i len:16
 i8const: dest:i len:16
-addcc: dest:i src1:i src2:i len:4
 add_imm: dest:i src1:i len:4
 long_add_imm: dest:i src1:i len:4
 long_add: dest:i src1:i src2:i len:4
