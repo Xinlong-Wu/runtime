@@ -787,6 +787,25 @@ mono_arch_is_inst_imm (int opcode, int imm_opcode, gint64 imm)
 	return TRUE;
 }
 
+gint
+mono_arch_get_memory_ordering(int memory_barrier_kind){
+	gint ordering;
+	switch (memory_barrier_kind){
+		case MONO_MEMORY_BARRIER_ACQ:
+			ordering = RISCV_ORDER_AQ;
+			break;
+		case MONO_MEMORY_BARRIER_REL:
+			ordering = RISCV_ORDER_RL;
+			break;
+		case MONO_MEMORY_BARRIER_SEQ:
+			ordering = RISCV_ORDER_ALL;
+		default:
+			ordering = RISCV_ORDER_NONE;
+			break;
+	}
+	return ordering;
+}
+
 GList *
 mono_arch_get_allocatable_int_vars (MonoCompile *cfg)
 {
@@ -1281,11 +1300,6 @@ loop_start:
 			case OP_SHR_UN_IMM:
 			case OP_MOVE:
 			case OP_LADD:
-
-			/* Atomic Ext */
-			case OP_MEMORY_BARRIER:
-			case OP_ATOMIC_STORE_I4:
-				break;
 			
 			/* skip dummy IL */
 			case OP_NOT_REACHED:
@@ -1297,6 +1311,19 @@ loop_start:
 			case OP_RISCV_BEQ:
 			case OP_RISCV_BNE:
 			case OP_RISCV_BGE:
+				break;
+			
+			/* Atomic Ext */
+			case OP_MEMORY_BARRIER:
+				break;
+			case OP_ATOMIC_STORE_I4:
+				if(ins->inst_offset){
+					NOT_IMPLEMENTED;
+					NEW_INS (cfg, ins, temp, OP_ADD_IMM);
+					temp->dreg = ins->dreg;
+					temp->sreg1 = ins->inst_destbasereg;
+					temp->inst_imm = ins->inst_offset;
+				}
 				break;
 
 			case OP_VOIDCALL_REG:
@@ -2203,6 +2230,15 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				riscv_fence(code, RISCV_FENCE_MEM, RISCV_FENCE_MEM);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
+			case OP_ATOMIC_STORE_I4:{
+				gint ordering = mono_arch_get_memory_ordering(ins->backend.memory_barrier_kind);
+#ifdef TARGET_RISCV64
+				riscv_sc_w(code, ordering, RISCV_ZERO, ins->sreg1, ins->dreg);
+#else
+				riscv_sc_d(code, ordering, RISCV_ZERO, ins->sreg1, ins->dreg);
+#endif
+				break;
+			}
 
 			/* Calls */
 			case OP_CALL:
