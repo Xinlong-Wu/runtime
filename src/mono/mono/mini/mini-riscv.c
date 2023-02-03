@@ -2295,6 +2295,10 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			}
 
 			/* Throw */
+			case OP_THROW:
+				code = mono_riscv_emit_call (cfg, code, MONO_PATCH_INFO_JIT_ICALL_ID,
+							  GUINT_TO_POINTER (MONO_JIT_ICALL_mono_arch_throw_exception));
+				break;
 			case OP_RETHROW:
 				code = mono_riscv_emit_call (cfg, code, MONO_PATCH_INFO_JIT_ICALL_ID,
 							  GUINT_TO_POINTER (MONO_JIT_ICALL_mono_arch_rethrow_exception));
