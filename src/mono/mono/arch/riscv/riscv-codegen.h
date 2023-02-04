@@ -625,7 +625,7 @@ riscv_is_jal_disp (void *code, void *target)
 static G_GNUC_UNUSED inline gsize
 riscv_get_jal_disp (void *code, void *target)
 {
-	return ((char*)(target) - (char*)(code)) & 0xffffe;
+	return ((char*)(target) - (char*)(code)) & 0xfffffffe;
 }
 
 /*
