@@ -1713,7 +1713,7 @@ mono_riscv_emit_call (MonoCompile *cfg, guint8* code, MonoJumpInfoType patch_typ
  * a register array at BASEREG+OFFSET.
  */
 guint8*
-emit_load_regarray (guint8 *code, guint64 regs, int basereg, int offset){
+emit_load_regarray (guint8 *code, guint64 regs, int basereg, int offset, MonoBoolean isFloat){
 	int i;
 
 	if (!RISCV_VALID_S_IMM (offset)){
@@ -1725,9 +1725,12 @@ emit_load_regarray (guint8 *code, guint64 regs, int basereg, int offset){
 
 	for (i = 0; i < 32; ++i){
 		if (regs & (1 << i)) {
-			if(i == RISCV_SP)
+			if(!isFloat && i == RISCV_SP)
 				g_assert_not_reached ();
-			code = mono_riscv_emit_load (code, i, basereg, offset + (i * sizeof(host_mgreg_t)), 0);
+			if(isFloat)
+				code = mono_riscv_emit_fload (code, i, basereg, offset + (i * sizeof(host_mgreg_t)));
+			else
+				code = mono_riscv_emit_load (code, i, basereg, offset + (i * sizeof(host_mgreg_t)), 0);
 		}
 	}
 
@@ -1741,7 +1744,7 @@ emit_load_regarray (guint8 *code, guint64 regs, int basereg, int offset){
  * a register array at BASEREG+OFFSET.
  */
 guint8*
-emit_store_regarray (guint8 *code, guint64 regs, int basereg, int offset){
+emit_store_regarray (guint8 *code, guint64 regs, int basereg, int offset, MonoBoolean isFloat){
 	int i;
 
 	if (!RISCV_VALID_S_IMM (offset)){
@@ -1753,9 +1756,12 @@ emit_store_regarray (guint8 *code, guint64 regs, int basereg, int offset){
 
 	for (i = 0; i < 32; ++i){
 		if (regs & (1 << i)) {
-			if(i == RISCV_SP)
+			if(!isFloat && i == RISCV_SP)
 				g_assert_not_reached ();
-			code = mono_riscv_emit_store (code, i, basereg, offset + (i * sizeof(host_mgreg_t)), 0);
+			if(isFloat)
+				code = mono_riscv_emit_fstore (code, i, basereg, offset + (i * sizeof(host_mgreg_t)));
+			else
+				code = mono_riscv_emit_store (code, i, basereg, offset + (i * sizeof(host_mgreg_t)), 0);
 		}
 	}
 
@@ -1769,7 +1775,7 @@ emit_store_regarray (guint8 *code, guint64 regs, int basereg, int offset){
  * at BASEREG+OFFSET.
  */
 guint8*
-emit_load_stack (guint8 *code, guint64 regs, int basereg, int offset){
+emit_load_stack (guint8 *code, guint64 regs, int basereg, int offset, MonoBoolean isFloat){
 	int i;
 	int pos = 0;
 
@@ -1782,7 +1788,10 @@ emit_load_stack (guint8 *code, guint64 regs, int basereg, int offset){
 
 	for (i = 0; i < 32; ++i) {
 		if (regs & (1 << i)) {
-			code = mono_riscv_emit_load(code, i, basereg, (offset + (pos * sizeof(host_mgreg_t))), 0);
+			if(isFloat)
+				code = mono_riscv_emit_fload (code, i, basereg, (offset + (pos * sizeof(host_mgreg_t))));
+			else
+				code = mono_riscv_emit_load(code, i, basereg, (offset + (pos * sizeof(host_mgreg_t))), 0);
 			pos++;
 		}
 	}
@@ -1797,12 +1806,15 @@ emit_load_stack (guint8 *code, guint64 regs, int basereg, int offset){
  * at BASEREG+OFFSET.
  */
 guint8*
-emit_store_stack (guint8 *code, guint64 regs, int basereg, int offset){
+emit_store_stack (guint8 *code, guint64 regs, int basereg, int offset, MonoBoolean isFloat){
 	int i, pos = 0;
 
 	for (i = 0; i < 32; ++i) {
 		if (regs & (1 << i)) {
-			code = mono_riscv_emit_store (code, i, basereg, (offset + (pos * sizeof(host_mgreg_t))), 0);
+			if(isFloat)
+				code = mono_riscv_emit_fstore (code, i, basereg, (offset + (pos * sizeof(host_mgreg_t))));
+			else
+				code = mono_riscv_emit_store (code, i, basereg, (offset + (pos * sizeof(host_mgreg_t))), 0);
 			pos++;
 		}
 	}
@@ -1828,11 +1840,11 @@ emit_setup_lmf (MonoCompile *cfg, guint8 *code, gint32 lmf_offset, int cfa_offse
 	/* pc */
 	code = mono_riscv_emit_imm (code, RISCV_T6, (gsize)code);
 	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2)
-	code = mono_riscv_emit_store (code, RISCV_T6, RISCV_FP, -(lmf_offset + MONO_STRUCT_OFFSET (MonoLMF, pc)), 0);
+	code = mono_riscv_emit_store (code, RISCV_T6, RISCV_FP, -lmf_offset + MONO_STRUCT_OFFSET (MonoLMF, pc), 0);
 	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2)
 	/* gregs + fp + sp */
 	// code = emit_store_regset_cfa (cfg, code, (MONO_ARCH_CALLEE_SAVED_REGS | (1 << RISCV_FP) | (1 << RISCV_SP)), RISCV_FP, lmf_offset + MONO_STRUCT_OFFSET (MonoLMF, gregs), cfa_offset, (1 << RISCV_FP) | (1 << RISCV_SP));
-	code = emit_store_stack (code, (MONO_ARCH_CALLEE_SAVED_REGS | (1 << RISCV_FP) | (1 << RISCV_SP)), RISCV_FP, lmf_offset + MONO_STRUCT_OFFSET (MonoLMF, gregs));
+	code = emit_store_stack (code, (MONO_ARCH_CALLEE_SAVED_REGS | (1 << RISCV_FP) | (1 << RISCV_SP)), RISCV_FP, -lmf_offset + MONO_STRUCT_OFFSET (MonoLMF, gregs), FALSE);
 
 	return code;
 }
@@ -1991,7 +2003,7 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 	}
 	else{
 		/* Save gregs */
-		code = emit_store_stack (code, MONO_ARCH_CALLEE_SAVED_REGS & cfg->used_int_regs, RISCV_FP, cfg->arch.saved_gregs_offset);
+		code = emit_store_stack (code, MONO_ARCH_CALLEE_SAVED_REGS & cfg->used_int_regs, RISCV_FP, -cfg->arch.saved_gregs_offset, FALSE);
 	}
 	
 	/* Save return area addr received */
@@ -2042,10 +2054,10 @@ mono_arch_emit_epilog (MonoCompile *cfg)
 	code = realloc_code (cfg, max_epilog_size);
 
 	if (cfg->method->save_lmf) {
-		code = emit_load_regarray (code, MONO_ARCH_CALLEE_SAVED_REGS & cfg->used_int_regs, RISCV_SP, cfg->lmf_var->inst_offset + MONO_STRUCT_OFFSET (MonoLMF, gregs) - (MONO_ARCH_FIRST_LMF_REG * 8));
+		code = emit_load_regarray (code, MONO_ARCH_CALLEE_SAVED_REGS & cfg->used_int_regs, RISCV_S0, -cfg->lmf_var->inst_offset + MONO_STRUCT_OFFSET (MonoLMF, gregs) + (MONO_ARCH_FIRST_LMF_REG * sizeof(host_mgreg_t)), FALSE);
 	} else {
 		/* Restore gregs */
-		code = emit_load_stack (code, MONO_ARCH_CALLEE_SAVED_REGS & cfg->used_int_regs, RISCV_SP, cfg->stack_offset);
+		code = emit_load_stack (code, MONO_ARCH_CALLEE_SAVED_REGS & cfg->used_int_regs, RISCV_S0, -cfg->stack_offset + sizeof(host_mgreg_t), FALSE);
 	}
 	
 	/* Load returned vtypes into registers if needed */
