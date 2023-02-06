@@ -2054,10 +2054,10 @@ mono_arch_emit_epilog (MonoCompile *cfg)
 	code = realloc_code (cfg, max_epilog_size);
 
 	if (cfg->method->save_lmf) {
-		code = emit_load_regarray (code, MONO_ARCH_CALLEE_SAVED_REGS & cfg->used_int_regs, RISCV_S0, -cfg->lmf_var->inst_offset + MONO_STRUCT_OFFSET (MonoLMF, gregs) + (MONO_ARCH_FIRST_LMF_REG * sizeof(host_mgreg_t)), FALSE);
+		code = emit_load_regarray (code, MONO_ARCH_CALLEE_SAVED_REGS & cfg->used_int_regs, RISCV_FP, -cfg->lmf_var->inst_offset + MONO_STRUCT_OFFSET (MonoLMF, gregs) + (MONO_ARCH_FIRST_LMF_REG * sizeof(host_mgreg_t)), FALSE);
 	} else {
 		/* Restore gregs */
-		code = emit_load_stack (code, MONO_ARCH_CALLEE_SAVED_REGS & cfg->used_int_regs, RISCV_S0, -cfg->stack_offset + sizeof(host_mgreg_t), FALSE);
+		code = emit_load_stack (code, MONO_ARCH_CALLEE_SAVED_REGS & cfg->used_int_regs, RISCV_FP, -cfg->stack_offset + sizeof(host_mgreg_t), FALSE);
 	}
 	
 	/* Load returned vtypes into registers if needed */

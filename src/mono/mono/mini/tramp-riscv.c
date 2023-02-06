@@ -511,7 +511,7 @@ mono_arch_create_sdb_trampoline (gboolean single_step, MonoTrampInfo **info, gbo
 	/* Save caller ip, aka ra*/
 	code = mono_riscv_emit_load(code, RISCV_T0, RISCV_FP, -sizeof(host_mgreg_t), 0);
 	// use greg[0] store pc
-	code = mono_riscv_emit_store(code, RISCV_T0, RISCV_FP, ctx_offset + G_STRUCT_OFFSET (MonoContext, gregs), 0);
+	code = mono_riscv_emit_store(code, RISCV_T0, RISCV_FP, -ctx_offset + G_STRUCT_OFFSET (MonoContext, gregs), 0);
 
 	/* Call the single step/breakpoint function in sdb */
 	/* Arg1 = ctx */
@@ -694,7 +694,7 @@ mono_arch_get_interp_to_native_trampoline (MonoTrampInfo **info)
 	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
 
 	/* Load CallContext* into T0 */
-	code = mono_riscv_emit_load(code, RISCV_T0, RISCV_FP, off_methodargs - framesize, 0);
+	code = mono_riscv_emit_load(code, RISCV_T0, RISCV_FP, -framesize + off_methodargs, 0);
 	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
 
 	/* set all general registers from CallContext */
