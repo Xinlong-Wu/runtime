@@ -477,9 +477,9 @@ mono_arch_create_sdb_trampoline (gboolean single_step, MonoTrampInfo **info, gbo
 	offset += 2 * sizeof(host_mgreg_t);
 
 	/* MonoContext */
-	ctx_offset = offset;
 	offset += sizeof (MonoContext);
 	offset = ALIGN_TO (offset, MONO_ARCH_FRAME_ALIGNMENT);
+	ctx_offset = offset - sizeof(host_mgreg_t);
 	frame_size = offset;
 
 	// FIXME: Unwind info
@@ -503,14 +503,14 @@ mono_arch_create_sdb_trampoline (gboolean single_step, MonoTrampInfo **info, gbo
 
 	/* Initialize a MonoContext structure on the stack */
 	/* No need to save fregs */
-	gregs_regset = ~((1 << RISCV_S0) | (1 << RISCV_SP));
-	code = emit_store_stack(code, gregs_regset, RISCV_FP, ctx_offset + G_STRUCT_OFFSET (MonoContext, gregs));
+	gregs_regset = ~((1 << RISCV_ZERO) | (1 << RISCV_FP) | (1 << RISCV_SP));
+	code = emit_store_regarray(code, gregs_regset, RISCV_FP, (-ctx_offset + G_STRUCT_OFFSET (MonoContext, gregs)));
 	/* Save caller fp */
 	code = mono_riscv_emit_load(code, RISCV_T0, RISCV_FP, -sizeof(host_mgreg_t)*2, 0);
-	code = mono_riscv_emit_store(code, RISCV_T0, RISCV_FP, ctx_offset + G_STRUCT_OFFSET (MonoContext, gregs) + (RISCV_FP * sizeof(host_mgreg_t)), 0);
+	code = mono_riscv_emit_store(code, RISCV_T0, RISCV_FP, -ctx_offset + G_STRUCT_OFFSET (MonoContext, gregs) + (RISCV_FP * sizeof(host_mgreg_t)), 0);
 	/* Save caller sp */
 	/* the value of current fp equals to caller's sp*/
-	code = mono_riscv_emit_store(code, RISCV_FP, RISCV_FP, ctx_offset + G_STRUCT_OFFSET (MonoContext, gregs) + (RISCV_SP * sizeof(host_mgreg_t)), 0);
+	code = mono_riscv_emit_store(code, RISCV_FP, RISCV_FP, -ctx_offset + G_STRUCT_OFFSET (MonoContext, gregs) + (RISCV_SP * sizeof(host_mgreg_t)), 0);
 	/* Save caller ip, aka ra*/
 	code = mono_riscv_emit_load(code, RISCV_T0, RISCV_FP, -sizeof(host_mgreg_t), 0);
 	// use greg[0] store pc
@@ -518,7 +518,7 @@ mono_arch_create_sdb_trampoline (gboolean single_step, MonoTrampInfo **info, gbo
 
 	/* Call the single step/breakpoint function in sdb */
 	/* Arg1 = ctx */
-	riscv_addi(code, RISCV_A1, RISCV_FP, ctx_offset);
+	riscv_addi(code, RISCV_A0, RISCV_FP, ctx_offset);
 	if (aot){
 		NOT_IMPLEMENTED;
 	}
@@ -530,13 +530,13 @@ mono_arch_create_sdb_trampoline (gboolean single_step, MonoTrampInfo **info, gbo
 
 	/* Restore ctx */
 	/* Save fp/pc into the frame block */
-	code = mono_riscv_emit_load(code, RISCV_T0, RISCV_FP, ctx_offset + G_STRUCT_OFFSET (MonoContext, gregs) + (RISCV_FP * 8), 0);
+	code = mono_riscv_emit_load(code, RISCV_T0, RISCV_FP, -ctx_offset + G_STRUCT_OFFSET (MonoContext, gregs) + (RISCV_FP * 8), 0);
 	code = mono_riscv_emit_store(code, RISCV_T0, RISCV_FP, -sizeof(host_mgreg_t)*2, 0);
-	code = mono_riscv_emit_load(code, RISCV_T0, RISCV_FP, ctx_offset + G_STRUCT_OFFSET (MonoContext, gregs) + (RISCV_SP * 8), 0);
+	code = mono_riscv_emit_load(code, RISCV_T0, RISCV_FP, -ctx_offset + G_STRUCT_OFFSET (MonoContext, gregs), 0);
 	code = mono_riscv_emit_store(code, RISCV_T0, RISCV_FP, -sizeof(host_mgreg_t), 0);
 
-	gregs_regset = ~((1 << RISCV_S0) | (1 << RISCV_SP));
-	code = emit_load_stack(code, gregs_regset, RISCV_FP, ctx_offset + G_STRUCT_OFFSET (MonoContext, gregs));
+	gregs_regset = ~((1 << RISCV_ZERO) | (1 << RISCV_FP) | (1 << RISCV_SP));
+	code = emit_load_regarray(code, gregs_regset, RISCV_FP, -ctx_offset + G_STRUCT_OFFSET (MonoContext, gregs));
 
 	code = mono_riscv_emit_destroy_frame (code, frame_size);
 
