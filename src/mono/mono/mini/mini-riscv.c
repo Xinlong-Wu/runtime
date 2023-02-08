@@ -1320,10 +1320,10 @@ loop_start:
 			case OP_DUMMY_USE:
 			case OP_NOP:
 
-			/* skip custom OP code*/
-			case OP_RISCV_BEQ:
-			case OP_RISCV_BNE:
-			case OP_RISCV_BGE:
+			/* skip Branch OP code*/
+			case OP_IBEQ:
+			case OP_IBNE_UN:
+			case OP_IBGE:
 				break;
 			
 			/* Atomic Ext */
@@ -1439,19 +1439,19 @@ loop_start:
 			case OP_LCOMPARE:				
 				if (ins->next){
 					if(ins->next->opcode == OP_LBEQ || ins->next->opcode == OP_IBEQ){
-						ins->next->opcode = OP_RISCV_BEQ;
+						ins->next->opcode = OP_IBEQ;
 						ins->next->sreg1 = ins->sreg1;
 						ins->next->sreg2 = ins->sreg2;
 						NULLIFY_INS (ins);
 					}
 					else if(ins->next->opcode == OP_LBNE_UN || ins->next->opcode == OP_IBNE_UN){
-						ins->next->opcode = OP_RISCV_BNE;
+						ins->next->opcode = OP_IBNE_UN;
 						ins->next->sreg1 = ins->sreg1;
 						ins->next->sreg2 = ins->sreg2;
 						NULLIFY_INS (ins);
 					}
 					else if(ins->next->opcode == OP_LBGE_UN || ins->next->opcode == OP_IBGE_UN){
-						ins->next->opcode = OP_RISCV_BGE;
+						ins->next->opcode = OP_IBGE;
 						ins->next->sreg1 = ins->sreg1;
 						ins->next->sreg2 = ins->sreg2;
 						NULLIFY_INS (ins);
@@ -2287,17 +2287,17 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				break;
 
 			/* Branch */
-			case OP_RISCV_BNE:
+			case OP_IBNE_UN:
 				mono_add_patch_info_rel (cfg, (code - cfg->native_code), MONO_PATCH_INFO_BB, ins->inst_true_bb, MONO_R_RISCV_BNE);
 				riscv_bne(code, ins->sreg1, ins->sreg2, 0);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
-			case OP_RISCV_BEQ:
+			case OP_IBEQ:
 				mono_add_patch_info_rel (cfg, (code - cfg->native_code), MONO_PATCH_INFO_BB, ins->inst_true_bb, MONO_R_RISCV_BEQ);
 				riscv_beq(code, ins->sreg1, ins->sreg2, 0);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
-			case OP_RISCV_BGE:
+			case OP_IBGE:
 				mono_add_patch_info_rel (cfg, (code - cfg->native_code), MONO_PATCH_INFO_BB, ins->inst_true_bb, MONO_R_RISCV_BGE);
 				riscv_bge(code, ins->sreg1, ins->sreg2, 0);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
