@@ -1138,9 +1138,9 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 	cinfo = cfg->arch.cinfo;
 
 	offset = 0;
-	// save FP reg to stack firstly
+	// save RA & FP reg to stack
 	cfg->frame_reg = RISCV_FP;
-	offset += sizeof (host_mgreg_t);
+	offset += sizeof (host_mgreg_t) * 2;
 
 	if (cfg->method->save_lmf) {
 		/* Save all callee-saved registers normally, and restore them when unwinding through an LMF */
@@ -1148,10 +1148,12 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 	}
 	else {
 		/* Callee saved regs */
-		cfg->arch.saved_gregs_offset = offset;
 		for (guint i = 0; i < 32; ++i)
-			if ((MONO_ARCH_CALLEE_SAVED_REGS & (1 << i)) && (cfg->used_int_regs & (1 << i)))
+			if ((MONO_ARCH_CALLEE_SAVED_REGS & (1 << i)) && (cfg->used_int_regs & (1 << i))){
+				g_print("save callee saved reg %s to %ld(s0/fp).\n", mono_arch_regname (i), -offset);
 				offset += sizeof (host_mgreg_t);
+			}
+		cfg->arch.saved_gregs_offset = offset;
 	}
 
 	/* Return value */
@@ -1186,8 +1188,8 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 		switch (ainfo->storage){
 			case ArgInIReg:
 			case ArgInFReg:
-				ins->inst_offset = offset;
 				offset += sizeof (host_mgreg_t);
+				ins->inst_offset = -offset;
 				break;
 			case ArgOnStack:
 			case ArgVtypeOnStack:
@@ -1198,14 +1200,15 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 				ins->opcode = OP_REGOFFSET;
 				ins->inst_basereg = cfg->frame_reg;
 				/* These arguments are saved to the stack in the prolog */
-				ins->inst_offset = offset;
-				if (cfg->verbose_level >= 2)
-					printf ("arg %d allocated to %s+0x%0x.\n", i, mono_arch_regname (ins->inst_basereg), (int)ins->inst_offset);
+				offset += sizeof (host_mgreg_t);
+				ins->inst_offset = -offset;
 				break;
 			default:
 				NOT_IMPLEMENTED;
 				break;
 		}
+		if (cfg->verbose_level >= 2)
+			g_print ("arg %d allocated to %ld(%s).\n", i, ins->inst_offset, mono_arch_regname (ins->inst_basereg));
 	}
 
 	/* OP_SEQ_POINT depends on these */
@@ -1218,8 +1221,9 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 		offset &= ~(align - 1);
 		ins->opcode = OP_REGOFFSET;
 		ins->inst_basereg = cfg->frame_reg;
-		ins->inst_offset = offset;
+		ins->inst_offset = -offset;
 		offset += size;
+		g_print("alloc seq_point_info_var to %ld(%s).\n", ins->inst_offset, mono_arch_regname (ins->inst_basereg));
 	}
 	ins = cfg->arch.ss_tramp_var;
 	if (ins) {
@@ -1229,8 +1233,9 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 		offset &= ~(align - 1);
 		ins->opcode = OP_REGOFFSET;
 		ins->inst_basereg = cfg->frame_reg;
-		ins->inst_offset = offset;
+		ins->inst_offset = -offset;
 		offset += size;
+		g_print("alloc ss_tramp_var to %ld(%s).\n", ins->inst_offset, mono_arch_regname (ins->inst_basereg));
 	}
 	ins = cfg->arch.bp_tramp_var;
 	if (ins) {
@@ -1240,8 +1245,9 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 		offset &= ~(align - 1);
 		ins->opcode = OP_REGOFFSET;
 		ins->inst_basereg = cfg->frame_reg;
-		ins->inst_offset = offset;
+		ins->inst_offset = -offset;
 		offset += size;
+		g_print("alloc bp_tramp_var to %ld(%s).\n", ins->inst_offset, mono_arch_regname (ins->inst_basereg));
 	}
 
 	/* Allocate locals */
@@ -1254,14 +1260,16 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 			ins = cfg->varinfo [i];
 			ins->opcode = OP_REGOFFSET;
 			ins->inst_basereg = cfg->frame_reg;
-			ins->inst_offset = offset + local_stack [i];
-			printf ("allocated local %d to %ld; ", i, ins->inst_offset); mono_print_ins (ins);
+			ins->inst_offset = -(offset + local_stack [i]);
+			g_print ("allocated local %d to %ld(s0/fp); ", i, ins->inst_offset); mono_print_ins (ins);
 		}
 	}
 	offset += locals_stack_size;
 	offset = ALIGN_TO (offset, MONO_ARCH_FRAME_ALIGNMENT);
 
 	cfg->stack_offset = offset;
+
+	g_print("Stack size: %ld\n",offset);
 }
 
 #define NEW_INS(cfg,ins,dest,op) do {	\
