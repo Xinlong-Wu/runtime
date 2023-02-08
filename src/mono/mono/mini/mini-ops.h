@@ -1783,9 +1783,3 @@ MINI_OP(OP_CVT_SI_FP,        "convert_si_to_fp", XREG, XREG, NONE)
 MINI_OP(OP_CVT_UI_FP_SCALAR, "convert_ui_to_fp_scalar", XREG, XREG, NONE)
 MINI_OP(OP_CVT_SI_FP_SCALAR, "convert_si_to_fp_scalar", XREG, XREG, NONE)
 #endif // TARGET_ARM64 || TARGET_AMD64
-
-#if defined(TARGET_RISCV64) || defined(TARGET_RISCV32)
-MINI_OP(OP_RISCV_BEQ, "riscv_beq", NONE, IREG, IREG)
-MINI_OP(OP_RISCV_BNE, "riscv_bne", NONE, IREG, IREG)
-MINI_OP(OP_RISCV_BGE, "riscv_bge", NONE, IREG, IREG)
-#endif

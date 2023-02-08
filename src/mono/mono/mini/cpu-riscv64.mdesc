@@ -73,8 +73,8 @@ shr_un_imm: dest:i src1:i len:4
 int_and: dest:i src1:i src2:i len:4
 long_and_imm: dest:i src1:i len:4
 
-riscv_beq: src1:i src2:i len:4
-riscv_bne: src1:i src2:i len:4
-riscv_bge: src1:i src2:i len:4
+int_beq: src1:i src2:i len:4
+int_bne_un: src1:i src2:i len:4
+int_bge: src1:i src2:i len:4
 
 gc_safe_point: src1:i len:12 clob:c
