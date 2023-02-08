@@ -320,6 +320,8 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 		*info = mono_tramp_info_create (tramp_name, buf, code - buf, ji, unwind_ops);
 	}
 
+	g_print("Emit trampoline of type %s, at 0x%lx to 0x%lx\n",tramp_name, buf, code);
+
 	return (guchar*)MINI_ADDR_TO_FTNPTR (buf);
 }
 
@@ -329,12 +331,13 @@ mono_arch_create_specific_trampoline (gpointer arg1, MonoTrampolineType tramp_ty
 {
 	guint8 *buf = mono_mem_manager_code_reserve (mem_manager, 64), *code = buf;
 	guint8 *tramp = mono_get_trampoline_code (tramp_type);
-
+	
 	// Pass the argument in scratch t0.
 	// clobbering t0-t3
 	code = mono_riscv_emit_imm (code, RISCV_T0, (gsize) arg1);
 	code = mono_riscv_emit_imm (code, RISCV_T1, (gsize) tramp);
 	riscv_jalr (code, RISCV_ZERO, RISCV_T1, 0);
+	g_print("Emit thunk for trampoline type %s, at 0x%lx to 0x%lx\n",mono_get_generic_trampoline_name (tramp_type), buf, code);
 
 	mono_arch_flush_icache (buf, code - buf);
 
