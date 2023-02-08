@@ -683,6 +683,11 @@ mono_print_ins_index_strbuf (int i, MonoInst *ins)
 	case OP_LBGE_UN:
 	case OP_LBLE:
 	case OP_LBLE_UN:
+#if defined(TARGET_RISCV64) || defined(TARGET_RISCV32)
+	case OP_RISCV_BNE:
+	case OP_RISCV_BEQ:
+	case OP_RISCV_BGE:
+#endif
 		if (!ins->inst_false_bb)
 			g_string_append_printf (sbuf, " [B%d]", ins->inst_true_bb->block_num);
 		else
