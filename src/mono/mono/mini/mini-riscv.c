@@ -1328,15 +1328,7 @@ loop_start:
 			
 			/* Atomic Ext */
 			case OP_MEMORY_BARRIER:
-				break;
 			case OP_ATOMIC_STORE_I4:
-				if(ins->inst_offset){
-					NOT_IMPLEMENTED;
-					NEW_INS (cfg, ins, temp, OP_ADD_IMM);
-					temp->dreg = ins->dreg;
-					temp->sreg1 = ins->inst_destbasereg;
-					temp->inst_imm = ins->inst_offset;
-				}
 				break;
 
 			case OP_VOIDCALL_REG:
@@ -2261,12 +2253,11 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
 			case OP_ATOMIC_STORE_I4:{
-				gint ordering = mono_arch_get_memory_ordering(ins->backend.memory_barrier_kind);
-#ifdef TARGET_RISCV64
-				riscv_sc_w(code, ordering, RISCV_ZERO, ins->sreg1, ins->dreg);
-#else
-				riscv_sc_d(code, ordering, RISCV_ZERO, ins->sreg1, ins->dreg);
-#endif
+				riscv_fence(code, RISCV_FENCE_MEM, RISCV_FENCE_W);
+				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+				code = mono_riscv_emit_store (code, ins->sreg1, ins->inst_destbasereg, ins->inst_offset, 4);
+				if (ins->backend.memory_barrier_kind == MONO_MEMORY_BARRIER_SEQ)
+					NOT_IMPLEMENTED;
 				break;
 			}
 
