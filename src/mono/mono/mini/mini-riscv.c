@@ -593,6 +593,7 @@ add_param (CallInfo *cinfo, ArgInfo *ainfo, MonoType *t){
 		case MONO_TYPE_U:
 		case MONO_TYPE_OBJECT:
 #endif
+		case MONO_TYPE_PTR:
 		case MONO_TYPE_U8:
 			add_arg (cinfo, ainfo, 8, FALSE);
 			break;
@@ -768,6 +769,7 @@ mono_arch_opcode_needs_emulation (MonoCompile *cfg, int opcode)
 	case OP_IREM:
 	case OP_IREM_UN:
 #ifdef TARGET_RISCV64
+	case OP_LMUL_IMM:
 	case OP_LDIV:
 	case OP_LDIV_UN:
 	case OP_LREM:
@@ -1096,8 +1098,13 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 	switch (ins->opcode) {
 		case OP_LADD:
 		case OP_LADD_IMM:
+		case OP_IADD_IMM:
 		case OP_LAND_IMM:
+		case OP_ICONV_TO_I:
+		case OP_ICONV_TO_U1:
 		case OP_LCONV_TO_I:
+		case OP_LMUL_IMM:
+			break;
 			break;
 		default:
 			g_print("Can't decompose the OP %s\n",mono_inst_name (ins->opcode));
