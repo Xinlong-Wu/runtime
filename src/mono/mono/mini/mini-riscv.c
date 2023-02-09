@@ -1148,12 +1148,13 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 	}
 	else {
 		/* Callee saved regs */
+		// saved_gregs_offset store the addr of firs reg
+		cfg->arch.saved_gregs_offset = offset + sizeof (host_mgreg_t);
 		for (guint i = 0; i < 32; ++i)
 			if ((MONO_ARCH_CALLEE_SAVED_REGS & (1 << i)) && (cfg->used_int_regs & (1 << i))){
 				g_print("save callee saved reg %s to %ld(s0/fp).\n", mono_arch_regname (i), -offset);
 				offset += sizeof (host_mgreg_t);
 			}
-		cfg->arch.saved_gregs_offset = offset;
 	}
 
 	/* Return value */
@@ -1221,8 +1222,8 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 		offset &= ~(align - 1);
 		ins->opcode = OP_REGOFFSET;
 		ins->inst_basereg = cfg->frame_reg;
-		ins->inst_offset = -offset;
 		offset += size;
+		ins->inst_offset = -offset;
 		g_print("alloc seq_point_info_var to %ld(%s).\n", ins->inst_offset, mono_arch_regname (ins->inst_basereg));
 	}
 	ins = cfg->arch.ss_tramp_var;
@@ -1233,8 +1234,8 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 		offset &= ~(align - 1);
 		ins->opcode = OP_REGOFFSET;
 		ins->inst_basereg = cfg->frame_reg;
-		ins->inst_offset = -offset;
 		offset += size;
+		ins->inst_offset = -offset;
 		g_print("alloc ss_tramp_var to %ld(%s).\n", ins->inst_offset, mono_arch_regname (ins->inst_basereg));
 	}
 	ins = cfg->arch.bp_tramp_var;
@@ -1245,8 +1246,8 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 		offset &= ~(align - 1);
 		ins->opcode = OP_REGOFFSET;
 		ins->inst_basereg = cfg->frame_reg;
-		ins->inst_offset = -offset;
 		offset += size;
+		ins->inst_offset = -offset;
 		g_print("alloc bp_tramp_var to %ld(%s).\n", ins->inst_offset, mono_arch_regname (ins->inst_basereg));
 	}
 
@@ -1728,9 +1729,9 @@ emit_load_regarray (guint8 *code, guint64 regs, int basereg, int offset, MonoBoo
 			if(!isFloat && i == RISCV_SP)
 				g_assert_not_reached ();
 			if(isFloat)
-				code = mono_riscv_emit_fload (code, i, basereg, offset + (i * sizeof(host_mgreg_t)));
+				code = mono_riscv_emit_fload (code, i, basereg, offset - (i * sizeof(host_mgreg_t)));
 			else
-				code = mono_riscv_emit_load (code, i, basereg, offset + (i * sizeof(host_mgreg_t)), 0);
+				code = mono_riscv_emit_load (code, i, basereg, offset - (i * sizeof(host_mgreg_t)), 0);
 		}
 	}
 
@@ -1759,9 +1760,9 @@ emit_store_regarray (guint8 *code, guint64 regs, int basereg, int offset, MonoBo
 			if(!isFloat && i == RISCV_SP)
 				g_assert_not_reached ();
 			if(isFloat)
-				code = mono_riscv_emit_fstore (code, i, basereg, offset + (i * sizeof(host_mgreg_t)));
+				code = mono_riscv_emit_fstore (code, i, basereg, offset - (i * sizeof(host_mgreg_t)));
 			else
-				code = mono_riscv_emit_store (code, i, basereg, offset + (i * sizeof(host_mgreg_t)), 0);
+				code = mono_riscv_emit_store (code, i, basereg, offset - (i * sizeof(host_mgreg_t)), 0);
 		}
 	}
 
@@ -1789,9 +1790,9 @@ emit_load_stack (guint8 *code, guint64 regs, int basereg, int offset, MonoBoolea
 	for (i = 0; i < 32; ++i) {
 		if (regs & (1 << i)) {
 			if(isFloat)
-				code = mono_riscv_emit_fload (code, i, basereg, (offset + (pos * sizeof(host_mgreg_t))));
+				code = mono_riscv_emit_fload (code, i, basereg, (offset - (pos * sizeof(host_mgreg_t))));
 			else
-				code = mono_riscv_emit_load(code, i, basereg, (offset + (pos * sizeof(host_mgreg_t))), 0);
+				code = mono_riscv_emit_load(code, i, basereg, (offset - (pos * sizeof(host_mgreg_t))), 0);
 			pos++;
 		}
 	}
@@ -1812,9 +1813,9 @@ emit_store_stack (guint8 *code, guint64 regs, int basereg, int offset, MonoBoole
 	for (i = 0; i < 32; ++i) {
 		if (regs & (1 << i)) {
 			if(isFloat)
-				code = mono_riscv_emit_fstore (code, i, basereg, (offset + (pos * sizeof(host_mgreg_t))));
+				code = mono_riscv_emit_fstore (code, i, basereg, (offset - (pos * sizeof(host_mgreg_t))));
 			else
-				code = mono_riscv_emit_store (code, i, basereg, (offset + (pos * sizeof(host_mgreg_t))), 0);
+				code = mono_riscv_emit_store (code, i, basereg, (offset - (pos * sizeof(host_mgreg_t))), 0);
 			pos++;
 		}
 	}
@@ -1840,11 +1841,11 @@ emit_setup_lmf (MonoCompile *cfg, guint8 *code, gint32 lmf_offset, int cfa_offse
 	/* pc */
 	code = mono_riscv_emit_imm (code, RISCV_T6, (gsize)code);
 	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2)
-	code = mono_riscv_emit_store (code, RISCV_T6, RISCV_FP, -lmf_offset + MONO_STRUCT_OFFSET (MonoLMF, pc), 0);
+	code = mono_riscv_emit_store (code, RISCV_T6, RISCV_FP, lmf_offset - MONO_STRUCT_OFFSET (MonoLMF, pc), 0);
 	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2)
 	/* gregs + fp + sp */
 	// code = emit_store_regset_cfa (cfg, code, (MONO_ARCH_CALLEE_SAVED_REGS | (1 << RISCV_FP) | (1 << RISCV_SP)), RISCV_FP, lmf_offset + MONO_STRUCT_OFFSET (MonoLMF, gregs), cfa_offset, (1 << RISCV_FP) | (1 << RISCV_SP));
-	code = emit_store_stack (code, (MONO_ARCH_CALLEE_SAVED_REGS | (1 << RISCV_FP) | (1 << RISCV_SP)), RISCV_FP, -lmf_offset + MONO_STRUCT_OFFSET (MonoLMF, gregs), FALSE);
+	code = emit_store_stack (code, (MONO_ARCH_CALLEE_SAVED_REGS | (1 << RISCV_FP) | (1 << RISCV_SP)), RISCV_FP, lmf_offset - MONO_STRUCT_OFFSET (MonoLMF, gregs), FALSE);
 
 	return code;
 }
@@ -2054,10 +2055,28 @@ mono_arch_emit_epilog (MonoCompile *cfg)
 	code = realloc_code (cfg, max_epilog_size);
 
 	if (cfg->method->save_lmf) {
-		code = emit_load_regarray (code, MONO_ARCH_CALLEE_SAVED_REGS & cfg->used_int_regs, RISCV_FP, -cfg->lmf_var->inst_offset + MONO_STRUCT_OFFSET (MonoLMF, gregs) + (MONO_ARCH_FIRST_LMF_REG * sizeof(host_mgreg_t)), FALSE);
+		// same as emit_load_stack()
+		int basereg = RISCV_FP;
+		int offset = cfg->lmf_var->inst_offset - MONO_STRUCT_OFFSET (MonoLMF, gregs);
+		// PC reg has been stored at first pos
+		int pos = 1;
+		if (!RISCV_VALID_S_IMM (offset)){
+			code = mono_riscv_emit_imm (code, RISCV_T6, offset);
+			riscv_add (code, RISCV_T6, basereg, RISCV_T6);
+			basereg = RISCV_T6;
+			offset = 0;
+		}
+
+		for (int i = MONO_ARCH_FIRST_LMF_REG; i < 32; ++i) {
+			if (MONO_ARCH_CALLEE_SAVED_REGS & (1 << i)){
+				if (cfg->used_int_regs & (1 << i))
+					code = mono_riscv_emit_load(code, i, basereg, (offset - (pos * sizeof(host_mgreg_t))), 0);
+				pos++;
+			}
+		}
 	} else {
 		/* Restore gregs */
-		code = emit_load_stack (code, MONO_ARCH_CALLEE_SAVED_REGS & cfg->used_int_regs, RISCV_FP, -cfg->stack_offset + sizeof(host_mgreg_t), FALSE);
+		code = emit_load_stack (code, MONO_ARCH_CALLEE_SAVED_REGS & cfg->used_int_regs, RISCV_FP, -cfg->arch.saved_gregs_offset, FALSE);
 	}
 	
 	/* Load returned vtypes into registers if needed */
