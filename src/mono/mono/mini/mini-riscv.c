@@ -1261,7 +1261,7 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 			ins = cfg->varinfo [i];
 			ins->opcode = OP_REGOFFSET;
 			ins->inst_basereg = cfg->frame_reg;
-			ins->inst_offset = -(offset + local_stack [i]);
+			ins->inst_offset = -(offset + sizeof (host_mgreg_t) + local_stack [i]);
 			g_print ("allocated local %d to %ld(s0/fp); ", i, ins->inst_offset); mono_print_ins (ins);
 		}
 	}
