@@ -1332,9 +1332,26 @@ loop_start:
 			case OP_ATOMIC_STORE_I4:
 				break;
 
+			case OP_VOIDCALL_MEMBASE:
+				if(!RISCV_VALID_J_IMM(ins->inst_offset)){
+					NOT_IMPLEMENTED;
+					NEW_INS (cfg, ins, temp, OP_ICONST);
+					temp->dreg = mono_alloc_ireg (cfg);
+					temp->inst_c0 = ins->inst_offset;
+
+					ins->sreg1 = temp->dreg;
+
+					NEW_INS (cfg, ins, temp, OP_LADD);
+					temp->dreg = ins->sreg1;
+					temp->sreg1 = ins->sreg1;
+					temp->sreg2 = ins->inst_basereg;
+
+					ins->inst_basereg = -1;
+					ins->inst_offset = 0;
+					ins->opcode = OP_VOIDCALL_REG;
+				}
+				break;
 			case OP_VOIDCALL_REG:
-				// use JALR x1, 0(src1)
-				ins->dreg = RISCV_X1;
 				break;
 			
 			/* Throw */
@@ -2293,6 +2310,10 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_VOIDCALL_REG:
 				// use JALR x1, 0(src1)
 				riscv_jalr(code, RISCV_RA, ins->sreg1, 0);
+				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+				break;
+			case OP_VOIDCALL_MEMBASE:
+				riscv_jalr(code, RISCV_RA, ins->inst_basereg, ins->inst_offset);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
 
