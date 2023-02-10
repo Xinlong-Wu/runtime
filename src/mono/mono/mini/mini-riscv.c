@@ -525,13 +525,9 @@ add_valuetype (CallInfo *cinfo, ArgInfo *ainfo, MonoType *t){
 	guint32 align;
 
 	size = mini_type_stack_size_full (t, &align, cinfo->pinvoke);
-#ifndef TARGET_RISCV64
-	align_size = ALIGN_TO (size, 8);
-	nregs = align_size / 8;
-#else if TARGET_RISCV32
-	align_size = ALIGN_TO (size, 4);
-	nregs = align_size / 4;
-#endif
+	aligned_size = ALIGN_TO (size, align);
+	nregs = align_size / sizeof(host_mgreg_t);
+
 	
 	if (align_size > 16) {
 		ainfo->storage = ArgVtypeByRef;
@@ -541,19 +537,19 @@ add_valuetype (CallInfo *cinfo, ArgInfo *ainfo, MonoType *t){
 
 	// save it on stack if don't have enough regs
 	if (cinfo->next_areg + nregs > RISCV_A7){
-		size = ALIGN_TO (size, 8);
 		ainfo->storage = ArgVtypeOnStack;
 		cinfo->stack_usage = ALIGN_TO (cinfo->stack_usage, align);
 		ainfo->offset = cinfo->stack_usage;
-		ainfo->size = size;
-		cinfo->stack_usage += size;
+		ainfo->size = aligned_size;
+		cinfo->stack_usage += aligned_size;
 		cinfo->next_areg = RISCV_A7 + 1;
 	} else {
 		ainfo->storage = ArgVtypeInIReg;
 		ainfo->reg = cinfo->next_areg;
 		ainfo->nregs = nregs;
-		ainfo->size = size;
+		ainfo->size = aligned_size;
 		cinfo->next_areg += nregs;
+		g_print
 	}
 }
 
@@ -599,6 +595,10 @@ add_param (CallInfo *cinfo, ArgInfo *ainfo, MonoType *t){
 		case MONO_TYPE_U8:
 			add_arg (cinfo, ainfo, 8, FALSE);
 			break;
+		case MONO_TYPE_GENERICINST:{
+
+			break;
+		}
 		case MONO_TYPE_VALUETYPE:
 			add_valuetype (cinfo, ainfo, ptype);
 			break;
@@ -1043,6 +1043,7 @@ mono_arch_emit_call (MonoCompile *cfg, MonoCallInst *call)
 					NOT_IMPLEMENTED;
 				}
 				else{
+					g_assert(ainfo->nregs == 1);
 					MONO_INST_NEW (cfg, ins, OP_MOVE);
 					ins->dreg = mono_alloc_ireg (cfg);
 					ins->sreg1 = in->dreg;
