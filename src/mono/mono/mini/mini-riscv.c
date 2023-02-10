@@ -8,6 +8,8 @@
 #include "mini-runtime.h"
 #include "ir-emit.h"
 
+#include <mono/metadata/tokentype.h>
+
 #ifdef TARGET_RISCV64
 #include "cpu-riscv64.h"
 #else
@@ -2553,20 +2555,19 @@ void
 mono_arch_emit_exceptions (MonoCompile *cfg)
 {
 	MonoJumpInfo *ji;
-	// MonoClass *exc_class;
-	guint8 *code;
-	// const guint8* exc_throw_pos [MONO_EXC_INTRINS_NUM] = {NULL};
+	MonoClass *exc_class;
+	guint8 *code, *ip;
+	guint8* exc_throw_pos [MONO_EXC_INTRINS_NUM] = {NULL};
 	guint8 exc_throw_found [MONO_EXC_INTRINS_NUM] = {0};
-	int exc_id, max_epilog_size = 32;
+	int exc_id, max_epilog_size = 0;
 
 	for (ji = cfg->patch_info; ji; ji = ji->next) {
 		if (ji->type == MONO_PATCH_INFO_EXC) {
 			exc_id = mini_exception_id_by_name ((const char*)ji->data.target);
 			g_assert (exc_id < MONO_EXC_INTRINS_NUM);
 			if (!exc_throw_found [exc_id]) {
-				g_assert_not_reached();
-				// max_epilog_size += 32; // TODO: how/why it be 32 ??
-				// exc_throw_found [exc_id] = TRUE;
+				max_epilog_size += 40; // 8 Inst for exception
+				exc_throw_found [exc_id] = TRUE;
 			}
 		}
 	}
@@ -2578,7 +2579,33 @@ mono_arch_emit_exceptions (MonoCompile *cfg)
 		if (ji->type != MONO_PATCH_INFO_EXC)
 			continue;
 
-		g_assert_not_reached();
+		ip = cfg->native_code + ji->ip.i;
+
+		exc_id = mini_exception_id_by_name ((const char*)ji->data.target);
+
+		if (exc_throw_pos [exc_id]){
+			/* ip should points to the branch inst in OP_COND_EXC_... */
+			riscv_patch_rel (ip, exc_throw_pos [exc_id], ji->relocation);
+			ji->type = MONO_PATCH_INFO_NONE;
+			continue;
+		}
+
+		exc_throw_pos [exc_id] = code;
+		riscv_patch_rel (ip, code, ji->relocation);
+
+		/* A0 = type token */
+		exc_class = mono_class_load_from_name (mono_defaults.corlib, "System", ji->data.name);
+		code = mono_riscv_emit_imm (code, RISCV_A0, m_class_get_type_token (exc_class) - MONO_TOKEN_TYPE_DEF);
+		/* A1 = throw ip */
+		riscv_addi (code, RISCV_A1, RISCV_T0, 0);
+		/* Branch to the corlib exception throwing trampoline */
+		ji->ip.i = code - cfg->native_code;
+		ji->type = MONO_PATCH_INFO_JIT_ICALL_ID;
+		ji->data.jit_icall_id = MONO_JIT_ICALL_mono_arch_throw_corlib_exception;
+		ji->relocation = MONO_R_RISCV_JAL;
+
+		riscv_jal (code, RISCV_RA, 0);
+		set_code_cursor (cfg, code);
 	}
 
 	set_code_cursor (cfg, code);
