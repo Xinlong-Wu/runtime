@@ -1104,6 +1104,7 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_LAND_IMM:
 		case OP_ICONV_TO_I:
 		case OP_ICONV_TO_U1:
+		case OP_ICONV_TO_U2:
 		case OP_LCONV_TO_I:
 		case OP_LMUL_IMM:
 			break;
@@ -1563,10 +1564,13 @@ loop_start:
 				NEW_INS (cfg, ins, temp, OP_SHL_IMM);
 				temp->dreg = ins->dreg;
 				temp->sreg1 = ins->sreg1;
-				temp->inst_imm = 24;
 
 				ins->opcode = OP_SHR_UN_IMM;
-				ins->inst_imm = 24;
+
+				if(ins->opcode == OP_ICONV_TO_U1){
+					temp->inst_imm = 24;
+					ins->inst_imm = 24;
+				}
 				break;
 			default:
 				printf ("unable to lowering following IR:"); mono_print_ins (ins);
