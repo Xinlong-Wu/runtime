@@ -34,6 +34,8 @@ dummy_use: src1:i len:0
 il_seq_point: len:0
 seq_point: len:0
 
+check_this: src1:b len:4
+
 throw: src1:i len:4
 rethrow: src1:i len:4
 get_ex_obj: dest:i len:4
@@ -50,7 +52,7 @@ storei2_membase_reg: dest:b src1:i len:4
 storei4_membase_reg: dest:b src1:i len:4
 storei8_membase_reg: dest:b src1:i len:4
 
-load_membase: dest:i src1:b len:16
+load_membase: dest:i src1:b len:24
 loadu1_membase: dest:i src1:b len:16
 loadi1_membase: dest:i src1:b len:16
 loadu2_membase: dest:i src1:b len:16
@@ -67,15 +69,27 @@ move: dest:i src1:i len:4
 iconst: dest:i len:16
 i8const: dest:i len:16
 add_imm: dest:i src1:i len:4
+int_add_imm: dest:i src1:i len:4
 long_add_imm: dest:i src1:i len:4
 long_add: dest:i src1:i src2:i len:4
 
-shr_un_imm: dest:i src1:i len:4
 int_and: dest:i src1:i src2:i len:4
 long_and_imm: dest:i src1:i len:4
+xor_imm: dest:i src1:i len:4
+shl_imm: dest:i src1:i len:4
+long_shl_imm: dest:i src1:i len:4
+shr_imm: dest:i src1:i len:4
+shr_un_imm: dest:i src1:i len:4
+sext_i4: dest:i src1:i len:4
 
 riscv_beq: src1:i src2:i len:4
+riscv_exc_beq: src1:i src2:i len:28
 riscv_bne: src1:i src2:i len:4
 riscv_bge: src1:i src2:i len:4
+riscv_slt: dest:i src1:i src2:i len:4
+riscv_sltiu: dest:i src1:i len:4
 
 gc_safe_point: src1:i len:12 clob:c
+start_handler: len:8 clob:c
+call_handler: len:4 clob:c
+endfinally: len:32
