@@ -1233,12 +1233,12 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 	else {
 		/* Callee saved regs */
 		// saved_gregs_offset store the addr of firs reg
-		cfg->arch.saved_gregs_offset = offset + sizeof (host_mgreg_t);
 		for (guint i = 0; i < 32; ++i)
 			if ((MONO_ARCH_CALLEE_SAVED_REGS & (1 << i)) && (cfg->used_int_regs & (1 << i))){
 				g_print("save callee saved reg %s to %ld(s0/fp).\n", mono_arch_regname (i), -offset);
 				offset += sizeof (host_mgreg_t);
 			}
+		cfg->arch.saved_gregs_offset = offset;
 	}
 
 	/* Return value */
@@ -1340,16 +1340,16 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 	if (locals_stack_align)
 		offset = ALIGN_TO (offset, locals_stack_align);
 
+	offset += locals_stack_size;
 	for (guint i = cfg->locals_start; i < cfg->num_varinfo; i++){
 		if (local_stack [i] != -1) {
 			ins = cfg->varinfo [i];
 			ins->opcode = OP_REGOFFSET;
 			ins->inst_basereg = cfg->frame_reg;
-			ins->inst_offset = -(offset + sizeof (host_mgreg_t) + local_stack [i]);
+			ins->inst_offset = -offset + local_stack [i];
 			g_print ("allocated local %d to %ld(s0/fp); ", i, ins->inst_offset); mono_print_ins (ins);
 		}
 	}
-	offset += locals_stack_size;
 	offset = ALIGN_TO (offset, MONO_ARCH_FRAME_ALIGNMENT);
 
 	cfg->stack_offset = offset;
@@ -2265,7 +2265,7 @@ mono_arch_emit_epilog (MonoCompile *cfg)
 	if (cfg->method->save_lmf) {
 		// same as emit_load_stack()
 		int basereg = RISCV_FP;
-		int offset = cfg->lmf_var->inst_offset - MONO_STRUCT_OFFSET (MonoLMF, gregs);
+		int offset = cfg->lmf_var->inst_offset + MONO_STRUCT_OFFSET (MonoLMF, gregs) + sizeof(host_mgreg_t) * RISCV_N_GSREGS;
 		// PC reg has been stored at first pos
 		int pos = 1;
 		if (!RISCV_VALID_S_IMM (offset)){
@@ -2278,7 +2278,7 @@ mono_arch_emit_epilog (MonoCompile *cfg)
 		for (int i = MONO_ARCH_FIRST_LMF_REG; i < 32; ++i) {
 			if (MONO_ARCH_CALLEE_SAVED_REGS & (1 << i)){
 				if (cfg->used_int_regs & (1 << i))
-					code = mono_riscv_emit_load(code, i, basereg, (offset - (pos * sizeof(host_mgreg_t))), 0);
+					code = mono_riscv_emit_load(code, i, basereg, (offset + (pos * sizeof(host_mgreg_t))), 0);
 				pos++;
 			}
 		}
