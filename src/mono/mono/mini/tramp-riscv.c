@@ -463,7 +463,7 @@ guint8 *
 mono_arch_create_sdb_trampoline (gboolean single_step, MonoTrampInfo **info, gboolean aot)
 {
 	int tramp_size = 512;
-	int offset, imm, frame_size, ctx_offset;
+	int offset, frame_size, ctx_offset;
 	guint64 gregs_regset;
 	guint8 *code, *buf;
 	GSList *unwind_ops = NULL;
@@ -478,8 +478,8 @@ mono_arch_create_sdb_trampoline (gboolean single_step, MonoTrampInfo **info, gbo
 	offset += 2 * sizeof(host_mgreg_t);
 
 	/* MonoContext */
-	ctx_offset = offset + sizeof(host_mgreg_t);
 	offset += sizeof (MonoContext);
+	ctx_offset = offset;
 	offset = ALIGN_TO (offset, MONO_ARCH_FRAME_ALIGNMENT);
 	frame_size = offset;
 
@@ -487,39 +487,38 @@ mono_arch_create_sdb_trampoline (gboolean single_step, MonoTrampInfo **info, gbo
 
 	MINI_BEGIN_CODEGEN ();
 	/* Setup stack frame */
-	imm = frame_size;
-	if(imm >= 0x800){
-		code = mono_riscv_emit_imm(code, RISCV_T0, -imm);
+	// imm = frame_size;
+	if(frame_size >= 0x800){
+		code = mono_riscv_emit_imm(code, RISCV_T0, -frame_size);
 		riscv_add(code, RISCV_SP, RISCV_SP, RISCV_T0);
 	}
 	else{
-		riscv_addi(code, RISCV_SP, RISCV_SP, -imm);
+		riscv_addi(code, RISCV_SP, RISCV_SP, -frame_size);
 	}
 
-	imm -= sizeof(host_mgreg_t);
-	code = mono_riscv_emit_store(code, RISCV_RA, RISCV_SP, imm, 0);
-	imm -= sizeof(host_mgreg_t);
-	code = mono_riscv_emit_store(code, RISCV_S0, RISCV_SP, imm, 0);
+	code = mono_riscv_emit_store(code, RISCV_RA, RISCV_SP, frame_size - sizeof(host_mgreg_t), 0);
+	code = mono_riscv_emit_store(code, RISCV_S0, RISCV_SP, frame_size - sizeof(host_mgreg_t), 0);
 	riscv_addi(code, RISCV_S0, RISCV_SP, frame_size);
 
 	/* Initialize a MonoContext structure on the stack */
 	/* No need to save fregs */
 	gregs_regset = ~((1 << RISCV_ZERO) | (1 << RISCV_FP) | (1 << RISCV_SP));
-	code = emit_store_regarray(code, gregs_regset, RISCV_FP, -ctx_offset - G_STRUCT_OFFSET (MonoContext, gregs), FALSE);
+	int ctx_gregs_offset = ctx_offset - G_STRUCT_OFFSET (MonoContext, gregs) - sizeof(host_mgreg_t) * RISCV_N_GREGS;
+	code = emit_store_regarray(code, gregs_regset, RISCV_FP, -ctx_gregs_offset, FALSE);
 	/* Save caller fp */
 	code = mono_riscv_emit_load(code, RISCV_T0, RISCV_FP, -sizeof(host_mgreg_t)*2, 0);
-	code = mono_riscv_emit_store(code, RISCV_T0, RISCV_FP, -ctx_offset - G_STRUCT_OFFSET (MonoContext, gregs) - (RISCV_FP * sizeof(host_mgreg_t)), 0);
+	code = mono_riscv_emit_store(code, RISCV_T0, RISCV_FP, -ctx_gregs_offset + (RISCV_FP * sizeof(host_mgreg_t)), 0);
 	/* Save caller sp */
 	/* the value of current fp equals to caller's sp*/
-	code = mono_riscv_emit_store(code, RISCV_FP, RISCV_FP, -ctx_offset - G_STRUCT_OFFSET (MonoContext, gregs) - (RISCV_SP * sizeof(host_mgreg_t)), 0);
+	code = mono_riscv_emit_store(code, RISCV_FP, RISCV_FP, -ctx_gregs_offset + (RISCV_SP * sizeof(host_mgreg_t)), 0);
 	/* Save caller ip, aka ra*/
 	code = mono_riscv_emit_load(code, RISCV_T0, RISCV_FP, -sizeof(host_mgreg_t), 0);
 	// use greg[0] store pc
-	code = mono_riscv_emit_store(code, RISCV_T0, RISCV_FP, -ctx_offset - G_STRUCT_OFFSET (MonoContext, gregs), 0);
+	code = mono_riscv_emit_store(code, RISCV_T0, RISCV_FP, -ctx_gregs_offset, 0);
 
 	/* Call the single step/breakpoint function in sdb */
 	/* Arg1 = ctx */
-	riscv_addi(code, RISCV_A0, RISCV_FP, ctx_offset);
+	riscv_addi(code, RISCV_A0, RISCV_FP, -ctx_offset);
 	if (aot){
 		NOT_IMPLEMENTED;
 	}
@@ -531,13 +530,13 @@ mono_arch_create_sdb_trampoline (gboolean single_step, MonoTrampInfo **info, gbo
 
 	/* Restore ctx */
 	/* Save fp/pc into the frame block */
-	code = mono_riscv_emit_load(code, RISCV_T0, RISCV_FP, -ctx_offset - G_STRUCT_OFFSET (MonoContext, gregs) - (RISCV_FP * sizeof(host_mgreg_t)), 0);
+	code = mono_riscv_emit_load(code, RISCV_T0, RISCV_FP, -ctx_gregs_offset + (RISCV_FP * sizeof(host_mgreg_t)), 0);
 	code = mono_riscv_emit_store(code, RISCV_T0, RISCV_FP, -sizeof(host_mgreg_t)*2, 0);
-	code = mono_riscv_emit_load(code, RISCV_T0, RISCV_FP, -ctx_offset - G_STRUCT_OFFSET (MonoContext, gregs), 0);
+	code = mono_riscv_emit_load(code, RISCV_T0, RISCV_FP, -ctx_gregs_offset, 0);
 	code = mono_riscv_emit_store(code, RISCV_T0, RISCV_FP, -sizeof(host_mgreg_t), 0);
 
 	gregs_regset = ~((1 << RISCV_ZERO) | (1 << RISCV_FP) | (1 << RISCV_SP));
-	code = emit_load_regarray(code, gregs_regset, RISCV_FP, -ctx_offset - G_STRUCT_OFFSET (MonoContext, gregs), FALSE);
+	code = emit_load_regarray(code, gregs_regset, RISCV_FP, -ctx_gregs_offset, FALSE);
 
 	code = mono_riscv_emit_destroy_frame (code, frame_size);
 
