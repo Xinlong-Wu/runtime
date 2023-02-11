@@ -236,15 +236,17 @@ typedef enum {
 	ArgVtypeByRefOnStack,
 	ArgVtypeOnStack,
 	ArgVtypeInIReg,
+	ArgVtypeInMixed,
 	ArgNone // only in void return type
 } ArgStorage;
 
 
 typedef struct {
-	guint8  reg;
-	/* ArgVtypeInIRegs */
-	int nregs, size;
 	ArgStorage storage;
+	/* ArgVtypeInIRegs */
+	guint8  reg;
+	int size;
+	guint8 is_regpair;
 	/* ArgOnStack */
 	int slot_size;
 	gint32  offset;
