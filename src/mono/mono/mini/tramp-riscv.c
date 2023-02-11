@@ -146,7 +146,8 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 	/* Save trampoline arg */
 	code = mono_riscv_emit_store (code, RISCV_T0, RISCV_FP, -arg_offset, 0);
 
-	/* Setup LMF */
+	/* Save LMF */
+	/* Similar to emit_save_lmf () */
 	// riscv_addi(code, RISCV_T2, RISCV_FP, -lmf_offset);
 	// MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
 	// in riscv, a array start from the lower addr, MONO_STRUCT_OFFSET() + sizeof(host_mgreg_t) * RISCV_N_GSREGS
@@ -169,8 +170,6 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 	MONO_ARCH_DUMP_CODE_DEBUG(code, 1);
 	code = mono_riscv_emit_store(code, RISCV_RA, RISCV_FP, -lmf_offset + MONO_STRUCT_OFFSET (MonoLMF, pc), 0);
 
-	/* Save LMF */
-	/* Similar to emit_save_lmf () */
 	if (aot){
 		NOT_IMPLEMENTED;
 	} else {
