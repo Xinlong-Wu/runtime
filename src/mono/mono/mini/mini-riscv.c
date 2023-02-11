@@ -1920,6 +1920,7 @@ mono_riscv_emit_branch_exc (MonoCompile *cfg, guint8 *code, const MonoInst ins, 
 guint8*
 emit_load_regarray (guint8 *code, guint64 regs, int basereg, int offset, MonoBoolean isFloat){
 	int i;
+	g_assert(basereg != RISCV_SP);
 
 	if (!RISCV_VALID_S_IMM (offset)){
 		code = mono_riscv_emit_imm (code, RISCV_T6, offset);
@@ -1933,9 +1934,9 @@ emit_load_regarray (guint8 *code, guint64 regs, int basereg, int offset, MonoBoo
 			if(!isFloat && i == RISCV_SP)
 				g_assert_not_reached ();
 			if(isFloat)
-				code = mono_riscv_emit_fload (code, i, basereg, offset - (i * sizeof(host_mgreg_t)));
+				code = mono_riscv_emit_fload (code, i, basereg, offset + (i * sizeof(host_mgreg_t)));
 			else
-				code = mono_riscv_emit_load (code, i, basereg, offset - (i * sizeof(host_mgreg_t)), 0);
+				code = mono_riscv_emit_load (code, i, basereg, offset + (i * sizeof(host_mgreg_t)), 0);
 		}
 	}
 
@@ -1951,6 +1952,7 @@ emit_load_regarray (guint8 *code, guint64 regs, int basereg, int offset, MonoBoo
 guint8*
 emit_store_regarray (guint8 *code, guint64 regs, int basereg, int offset, MonoBoolean isFloat){
 	int i;
+	g_assert(basereg != RISCV_SP);
 
 	if (!RISCV_VALID_S_IMM (offset)){
 		code = mono_riscv_emit_imm (code, RISCV_T6, offset);
@@ -1964,9 +1966,9 @@ emit_store_regarray (guint8 *code, guint64 regs, int basereg, int offset, MonoBo
 			if(!isFloat && i == RISCV_SP)
 				g_assert_not_reached ();
 			if(isFloat)
-				code = mono_riscv_emit_fstore (code, i, basereg, offset - (i * sizeof(host_mgreg_t)));
+				code = mono_riscv_emit_fstore (code, i, basereg, offset + (i * sizeof(host_mgreg_t)));
 			else
-				code = mono_riscv_emit_store (code, i, basereg, offset - (i * sizeof(host_mgreg_t)), 0);
+				code = mono_riscv_emit_store (code, i, basereg, offset + (i * sizeof(host_mgreg_t)), 0);
 		}
 	}
 
@@ -1983,6 +1985,7 @@ guint8*
 emit_load_stack (guint8 *code, guint64 regs, int basereg, int offset, MonoBoolean isFloat){
 	int i;
 	int pos = 0;
+	g_assert(basereg != RISCV_SP);
 
 	if (!RISCV_VALID_S_IMM (offset)){
 		code = mono_riscv_emit_imm (code, RISCV_T6, offset);
@@ -1994,9 +1997,9 @@ emit_load_stack (guint8 *code, guint64 regs, int basereg, int offset, MonoBoolea
 	for (i = 0; i < 32; ++i) {
 		if (regs & (1 << i)) {
 			if(isFloat)
-				code = mono_riscv_emit_fload (code, i, basereg, (offset - (pos * sizeof(host_mgreg_t))));
+				code = mono_riscv_emit_fload (code, i, basereg, (offset + (pos * sizeof(host_mgreg_t))));
 			else
-				code = mono_riscv_emit_load(code, i, basereg, (offset - (pos * sizeof(host_mgreg_t))), 0);
+				code = mono_riscv_emit_load(code, i, basereg, (offset + (pos * sizeof(host_mgreg_t))), 0);
 			pos++;
 		}
 	}
@@ -2013,13 +2016,14 @@ emit_load_stack (guint8 *code, guint64 regs, int basereg, int offset, MonoBoolea
 guint8*
 emit_store_stack (guint8 *code, guint64 regs, int basereg, int offset, MonoBoolean isFloat){
 	int i, pos = 0;
+	g_assert(basereg != RISCV_SP);
 
 	for (i = 0; i < 32; ++i) {
 		if (regs & (1 << i)) {
 			if(isFloat)
-				code = mono_riscv_emit_fstore (code, i, basereg, (offset - (pos * sizeof(host_mgreg_t))));
+				code = mono_riscv_emit_fstore (code, i, basereg, (offset + (pos * sizeof(host_mgreg_t))));
 			else
-				code = mono_riscv_emit_store (code, i, basereg, (offset - (pos * sizeof(host_mgreg_t))), 0);
+				code = mono_riscv_emit_store (code, i, basereg, (offset + (pos * sizeof(host_mgreg_t))), 0);
 			pos++;
 		}
 	}
