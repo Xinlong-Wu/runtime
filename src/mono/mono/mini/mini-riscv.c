@@ -564,7 +564,7 @@ add_valuetype (CallInfo *cinfo, ArgInfo *ainfo, MonoType *t){
 			ainfo->storage = ArgVtypeInMixed;
 			cinfo->stack_usage += sizeof(host_mgreg_t);
 			ainfo->slot_size = sizeof(host_mgreg_t);
-			ainfo->size = cinfo->stack_usage;
+			ainfo->offset = cinfo->stack_usage;
 
 			ainfo->reg = cinfo->next_areg;
 			ainfo->size = sizeof(host_mgreg_t);
@@ -998,6 +998,7 @@ add_outarg_reg (MonoCompile *cfg, MonoCallInst *call, ArgStorage storage, int re
  */
 static void
 emit_sig_cookie (MonoCompile *cfg, MonoCallInst *call, CallInfo *cinfo){
+	NOT_IMPLEMENTED;
 	MonoMethodSignature *tmp_sig;
 	MonoInst *sig_arg;
 
@@ -1102,25 +1103,25 @@ mono_arch_emit_call (MonoCompile *cfg, MonoCallInst *call)
 			case ArgOnStack:{
 				switch (ainfo->slot_size){
 				case 1:
-					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI1_MEMBASE_REG, RISCV_SP, ainfo->offset, arg->dreg);
+					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI1_MEMBASE_REG, RISCV_FP, -ainfo->offset, arg->dreg);
 					break;
 				case 2:
-					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI2_MEMBASE_REG, RISCV_SP, ainfo->offset, arg->dreg);
+					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI2_MEMBASE_REG, RISCV_FP, -ainfo->offset, arg->dreg);
 					break;
 				case 4:
-					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI4_MEMBASE_REG, RISCV_SP, ainfo->offset, arg->dreg);
+					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI4_MEMBASE_REG, RISCV_FP, -ainfo->offset, arg->dreg);
 					break;
 				case 8:
 #ifdef TARGET_RISCV32
  					NOT_IMPLEMENTED;
 					break;
 #else // TARGET_RISCV64
-					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI8_MEMBASE_REG, RISCV_SP, ainfo->offset, arg->dreg);
+					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI8_MEMBASE_REG, RISCV_FP, -ainfo->offset, arg->dreg);
 					break;
 				// RV64 Only, XLEN*2 == 16
 				case 16:
-					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI8_MEMBASE_REG, RISCV_SP, ainfo->offset, arg->dreg);
-					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI8_MEMBASE_REG, RISCV_SP, ainfo->offset + 8, arg->dreg+1);
+					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI8_MEMBASE_REG, RISCV_FP, -ainfo->offset, arg->dreg);
+					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI8_MEMBASE_REG, RISCV_FP, -ainfo->offset + 8, arg->dreg+1);
 					break;
 #endif
 				default:
@@ -2045,15 +2046,20 @@ emit_setup_lmf (MonoCompile *cfg, guint8 *code, gint32 lmf_offset, int cfa_offse
 	 * FIXME: Save callee saved fp regs, JITted code doesn't use them, but native code does, and they
 	 * need to be restored during EH.
 	 */
-
+	g_assert(lmf_offset <= 0);
 	/* pc */
 	code = mono_riscv_emit_imm (code, RISCV_T6, (gsize)code);
 	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2)
-	code = mono_riscv_emit_store (code, RISCV_T6, RISCV_FP, lmf_offset - MONO_STRUCT_OFFSET (MonoLMF, pc), 0);
+	code = mono_riscv_emit_store (code, RISCV_T6, RISCV_FP, lmf_offset + MONO_STRUCT_OFFSET (MonoLMF, pc), 0);
 	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2)
 	/* gregs + fp + sp */
+	/* Save caller fp */
+	code = mono_riscv_emit_store(code, RISCV_FP, RISCV_FP, lmf_offset + MONO_STRUCT_OFFSET (MonoLMF, fp), 0);
+	/* Save caller sp */
+	code = mono_riscv_emit_store(code, RISCV_SP, RISCV_FP, lmf_offset + MONO_STRUCT_OFFSET (MonoLMF, sp), 0);
+
 	// code = emit_store_regset_cfa (cfg, code, (MONO_ARCH_CALLEE_SAVED_REGS | (1 << RISCV_FP) | (1 << RISCV_SP)), RISCV_FP, lmf_offset + MONO_STRUCT_OFFSET (MonoLMF, gregs), cfa_offset, (1 << RISCV_FP) | (1 << RISCV_SP));
-	code = emit_store_stack (code, (MONO_ARCH_CALLEE_SAVED_REGS | (1 << RISCV_FP) | (1 << RISCV_SP)), RISCV_FP, lmf_offset - MONO_STRUCT_OFFSET (MonoLMF, gregs), FALSE);
+	code = emit_store_stack (code, (MONO_ARCH_CALLEE_SAVED_REGS), RISCV_FP, lmf_offset + MONO_STRUCT_OFFSET (MonoLMF, gregs) + sizeof(host_mgreg_t) * RISCV_N_GSREGS, FALSE);
 
 	return code;
 }
@@ -2202,12 +2208,13 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 
 	// save other registers
 	if (cfg->param_area) {
-		/* The param area is below the frame pointer */
+		/* The param area is below the stack pointer */
 		riscv_addi(code, RISCV_SP, RISCV_SP, -cfg->param_area);
 		MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 	}
 
 	if (cfg->method->save_lmf){
+		g_assert(cfg->lmf_var->inst_offset <= 0);
 		code = emit_setup_lmf (cfg, code, cfg->lmf_var->inst_offset, cfa_offset);
 	}
 	else{
@@ -2264,9 +2271,9 @@ mono_arch_emit_epilog (MonoCompile *cfg)
 
 	if (cfg->method->save_lmf) {
 		// same as emit_load_stack()
+		g_assert(cfg->lmf_var->inst_offset <= 0);
 		int basereg = RISCV_FP;
 		int offset = cfg->lmf_var->inst_offset + MONO_STRUCT_OFFSET (MonoLMF, gregs) + sizeof(host_mgreg_t) * RISCV_N_GSREGS;
-		// PC reg has been stored at first pos
 		int pos = 1;
 		if (!RISCV_VALID_S_IMM (offset)){
 			code = mono_riscv_emit_imm (code, RISCV_T6, offset);
