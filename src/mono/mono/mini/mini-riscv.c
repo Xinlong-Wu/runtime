@@ -496,60 +496,102 @@ mono_arch_patch_code_new (MonoCompile *cfg, guint8 *code,
  */
 static void
 add_arg(CallInfo *cinfo, ArgInfo *ainfo, int size, gboolean sign) {
+	g_assert(size <= 8);
+	g_assert(cinfo->next_areg >= RISCV_A0);
 
-	if( cinfo->next_areg < RISCV_A0 || cinfo->next_areg > RISCV_A7){
-		ainfo->storage = ArgOnStack;
-		if(cinfo->vararg){
-#ifndef TARGET_RISCV64
-			size = 8;
-#else if TARGET_RISCV32
-			size = 4;
-#endif
-		}
-		cinfo->stack_usage = ALIGN_TO (cinfo->stack_usage, size);
-		ainfo->offset = cinfo->stack_usage;
-		ainfo->slot_size = size;
-		ainfo->is_signed = sign;
-		cinfo->stack_usage += size;
+	if(cinfo->vararg){
+		NOT_IMPLEMENTED;
 	}
-	else{
+
+	// for RV64, length of all arg here will not wider then XLEN
+	// store it normally.
+	if(cinfo->next_areg <= RISCV_A7){
+		// there is at least 1 avaliable reg
+#ifdef TARGET_RISCV32
+		// Scalars that are 2×XLEN bits wide are passed in a pair of argument registers
+		if(size == 8){
+			NOT_IMPLEMENTED;
+			// If exactly one register is available, the low-order XLEN bits are 
+			// passed in the register and the high-order XLEN bits are passed on the stack
+			if(cinfo->next_areg == RISCV_A7){
+				NOT_IMPLEMENTED;
+			}
+			return;
+		}
+#endif
 		ainfo->storage = ArgInIReg;
 		ainfo->reg = cinfo->next_areg;
 		cinfo->next_areg ++;
 	}
+	// If no argument registers are available, the scalar is passed on the stack by value
+	else{
+		cinfo->stack_usage += size;
+		ainfo->storage = ArgOnStack;
+		ainfo->slot_size = size;
+		ainfo->offset = cinfo->stack_usage;
+		ainfo->is_signed = sign;
+	}
+
 }
 
 static void
 add_valuetype (CallInfo *cinfo, ArgInfo *ainfo, MonoType *t){
-	int i, size, align_size, nregs;
+	int i, size, aligned_size;
 	guint32 align;
 
 	size = mini_type_stack_size_full (t, &align, cinfo->pinvoke);
 	aligned_size = ALIGN_TO (size, align);
-	nregs = align_size / sizeof(host_mgreg_t);
 
-	
-	if (align_size > 16) {
-		ainfo->storage = ArgVtypeByRef;
-		ainfo->size = size;
-		return;
-	}
-
-	// save it on stack if don't have enough regs
-	if (cinfo->next_areg + nregs > RISCV_A7){
+	// Scalars wider than 2×XLEN bits are passed by reference
+	if (aligned_size > sizeof(host_mgreg_t)*2) {
 		ainfo->storage = ArgVtypeOnStack;
-		cinfo->stack_usage = ALIGN_TO (cinfo->stack_usage, align);
-		ainfo->offset = cinfo->stack_usage;
-		ainfo->size = aligned_size;
 		cinfo->stack_usage += aligned_size;
-		cinfo->next_areg = RISCV_A7 + 1;
-	} else {
+		ainfo->slot_size = size;
+		ainfo->offset = cinfo->stack_usage;
+	}
+	// Scalars that are 2×XLEN bits wide are passed in a pair of argument registers
+	else if(aligned_size == sizeof(host_mgreg_t)*2){
+		// If no argument registers are available, the scalar is passed on the stack by value
+		if(cinfo->next_areg > RISCV_A7){
+			ainfo->storage = ArgVtypeOnStack;
+			cinfo->stack_usage += sizeof(host_mgreg_t)*2;
+			ainfo->slot_size = sizeof(host_mgreg_t)*2;
+			ainfo->offset = cinfo->stack_usage;
+		}
+		// If exactly one register is available, the low-order XLEN bits are 
+		// passed in the register and the high-order XLEN bits are passed on the stack
+		else if(cinfo->next_areg == RISCV_A7){
+			ainfo->storage = ArgVtypeInMixed;
+			cinfo->stack_usage += sizeof(host_mgreg_t);
+			ainfo->slot_size = sizeof(host_mgreg_t);
+			ainfo->size = cinfo->stack_usage;
+
+			ainfo->reg = cinfo->next_areg;
+			ainfo->size = sizeof(host_mgreg_t);
+			ainfo->is_regpair = FALSE;
+
+			cinfo->next_areg++;
+		}
+		// Scalars that are 2×XLEN bits wide are passed in a pair of argument 
+		// registers, with the low-order XLEN bits in the lower-numbered register
+		// and the high-order XLEN bits in the higher-numbered register
+		else{
+			ainfo->storage = ArgVtypeInIReg;
+			ainfo->reg = cinfo->next_areg;
+			ainfo->size = sizeof(host_mgreg_t)*2;
+			ainfo->is_regpair = TRUE;
+
+			cinfo->next_areg += 2;
+		}
+	}
+	// Scalars that are at most XLEN bits wide are passed in a single argument register
+	else{
 		ainfo->storage = ArgVtypeInIReg;
 		ainfo->reg = cinfo->next_areg;
-		ainfo->nregs = nregs;
-		ainfo->size = aligned_size;
-		cinfo->next_areg += nregs;
-		g_print
+		ainfo->size = sizeof(host_mgreg_t)*2;
+		ainfo->is_regpair = TRUE;
+
+		cinfo->next_areg += 2;
 	}
 }
 
@@ -575,28 +617,30 @@ add_param (CallInfo *cinfo, ArgInfo *ainfo, MonoType *t){
 		case MONO_TYPE_U2:
 			add_arg (cinfo, ainfo, 2, FALSE);
 			break;
+		case MONO_TYPE_I:
 		case MONO_TYPE_I4:
 			add_arg (cinfo, ainfo, 4, TRUE);
 			break;
+		case MONO_TYPE_U:
 		case MONO_TYPE_U4:
+#ifdef TARGET_RISCV32
+		case MONO_TYPE_PTR:
+		case MONO_TYPE_OBJECT:
+#endif
 			add_arg (cinfo, ainfo, 4, FALSE);
 			break;
 		case MONO_TYPE_I8:
-#ifdef TARGET_RISCV64
-		case MONO_TYPE_I:
-#endif
 			add_arg (cinfo, ainfo, 8, TRUE);
 			break;
+		case MONO_TYPE_U8:
 #ifdef TARGET_RISCV64
-		case MONO_TYPE_U:
+		case MONO_TYPE_PTR:
 		case MONO_TYPE_OBJECT:
 #endif
-		case MONO_TYPE_PTR:
-		case MONO_TYPE_U8:
 			add_arg (cinfo, ainfo, 8, FALSE);
 			break;
 		case MONO_TYPE_GENERICINST:{
-
+			NOT_IMPLEMENTED;
 			break;
 		}
 		case MONO_TYPE_VALUETYPE:
@@ -617,7 +661,6 @@ add_param (CallInfo *cinfo, ArgInfo *ainfo, MonoType *t){
  */
 CallInfo *
 get_call_info(MonoMemPool *mp, MonoMethodSignature *sig){
-
 	CallInfo *cinfo;
 	int paramNum = sig->hasthis + sig->param_count;
 	if (mp)
@@ -659,6 +702,7 @@ get_call_info(MonoMemPool *mp, MonoMethodSignature *sig){
 
 static gpointer
 arg_get_storage (CallContext *ccontext, ArgInfo *ainfo){
+	NOT_IMPLEMENTED;
 	switch (ainfo->storage) {
 		case ArgInIReg:
 		case ArgVtypeInIReg:
@@ -667,6 +711,7 @@ arg_get_storage (CallContext *ccontext, ArgInfo *ainfo){
 			return &ccontext->fregs [ainfo->reg];
 		case ArgOnStack:
 		case ArgVtypeOnStack:
+		case ArgVtypeInMixed:
 			return ccontext->stack + ainfo->offset;
 		default:
 			g_print("Can't process storage type %d\n", ainfo->storage);
@@ -678,6 +723,7 @@ arg_get_storage (CallContext *ccontext, ArgInfo *ainfo){
 void
 mono_arch_set_native_call_context_args (CallContext *ccontext, gpointer frame, MonoMethodSignature *sig)
 {
+	NOT_IMPLEMENTED;
 	const MonoEECallbacks *interp_cb = mini_get_interp_callbacks ();
 	CallInfo *cinfo = get_call_info (NULL, sig);
 	gpointer storage;
@@ -931,6 +977,7 @@ add_outarg_reg (MonoCompile *cfg, MonoCallInst *call, ArgStorage storage, int re
 
 	switch (storage) {
 		default:
+			g_print("unable process storage type %d\n",storage);
 			NOT_IMPLEMENTED;
 			break;
 		case ArgInIReg:
@@ -984,31 +1031,46 @@ emit_sig_cookie (MonoCompile *cfg, MonoCallInst *call, CallInfo *cinfo){
 void
 mono_arch_emit_call (MonoCompile *cfg, MonoCallInst *call)
 {
-	MonoInst *in, *ins;
+	MonoInst *arg, *vtarg;
 	MonoMethodSignature *sig;
-
+	ArgInfo *ainfo;
 	CallInfo *cinfo;
-	int is_virtual = 0;
 
 	sig = call->signature;
 	int paramNum = sig->param_count + sig->hasthis;
 
 	cinfo = get_call_info (cfg->mempool, sig);
 
-	/* Emit the inst of return by return type */
-	switch (cinfo->ret.storage){
-		default:
-			break;
-		case ArgVtypeByRef:
-		case ArgVtypeInIReg:
-			g_print("unable process storage type 0x%x\n",cinfo->ret.storage); 
-			NOT_IMPLEMENTED;
-			break;
-	}
+	/* Emit the inst of return at mono_arch_emit_setret() */
+	// switch (cinfo->ret.storage){
+	// 	case ArgVtypeInIReg:
+	// 		/*
+	// 		* The vtype is returned in registers, save the return area address in a local, and save the vtype into
+	// 		* the location pointed to by it after call in emit_move_return_value ().
+	// 		*/
+	// 		NOT_IMPLEMENTED;
+	// 		break;
+	// 	case ArgVtypeByRef:
+	// 		NOT_IMPLEMENTED;
+	// 		break;
+	// 	case ArgVtypeByRefOnStack:
+	// 		NOT_IMPLEMENTED;
+	// 		break;
+	// 	case ArgVtypeOnStack:
+	// 		NOT_IMPLEMENTED;
+	// 		break;
+	// 	case ArgVtypeInMixed:
+	// 		NOT_IMPLEMENTED;
+	// 		break;
+	// 	default:
+	// 		g_print("unable process storage type %d\n",cinfo->ret.storage); 
+	// 		NOT_IMPLEMENTED;
+	// 		break;
+	// }
 
-	if (cinfo->struct_ret)
-		// call->used_iregs |= 1 << cinfo->struct_ret;
-		NOT_IMPLEMENTED;
+	// if (cinfo->struct_ret)
+	// 	// call->used_iregs |= 1 << cinfo->struct_ret;
+	// 	NOT_IMPLEMENTED;
 
 	if (COMPILE_LLVM (cfg)) {
 		/* We shouldn't be called in the llvm case */
@@ -1018,7 +1080,7 @@ mono_arch_emit_call (MonoCompile *cfg, MonoCallInst *call)
 
 	for (int i = 0; i < paramNum; i++)
 	{
-		ArgInfo *ainfo = cinfo->args + i;
+		ainfo = cinfo->args + i;
 		MonoType *t;
 
 		if (sig->hasthis && i == 0)
@@ -1032,27 +1094,38 @@ mono_arch_emit_call (MonoCompile *cfg, MonoCallInst *call)
 			emit_sig_cookie (cfg, call, cinfo);
 		}
 
-		if (is_virtual && i == 0) {
-			NOT_IMPLEMENTED;
-		}
-
-		in = call->args [i];
+		arg = call->args [i];
 		switch (ainfo->storage){
-			case ArgInIReg:{
-				if (!m_type_is_byref(t) && ((t->type == MONO_TYPE_I8) || (t->type == MONO_TYPE_U8))){
-					NOT_IMPLEMENTED;
-				}
-				else{
-					g_assert(ainfo->nregs == 1);
-					MONO_INST_NEW (cfg, ins, OP_MOVE);
-					ins->dreg = mono_alloc_ireg (cfg);
-					ins->sreg1 = in->dreg;
-					MONO_ADD_INS (cfg->cbb, ins);
-
-					mono_call_inst_add_outarg_reg (cfg, call, ins->dreg, ainfo->reg, FALSE);
-				}
+			case ArgInIReg:
+				add_outarg_reg (cfg, call, ainfo->storage, ainfo->reg, arg);
 				break;
-			}
+			case ArgOnStack:{
+				switch (ainfo->slot_size){
+				case 1:
+					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI1_MEMBASE_REG, RISCV_SP, ainfo->offset, arg->dreg);
+					break;
+				case 2:
+					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI2_MEMBASE_REG, RISCV_SP, ainfo->offset, arg->dreg);
+					break;
+				case 4:
+					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI4_MEMBASE_REG, RISCV_SP, ainfo->offset, arg->dreg);
+					break;
+				case 8:
+#ifdef TARGET_RISCV32
+ 					NOT_IMPLEMENTED;
+					break;
+#else // TARGET_RISCV64
+					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI8_MEMBASE_REG, RISCV_SP, ainfo->offset, arg->dreg);
+					break;
+				// RV64 Only, XLEN*2 == 16
+				case 16:
+					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI8_MEMBASE_REG, RISCV_SP, ainfo->offset, arg->dreg);
+					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI8_MEMBASE_REG, RISCV_SP, ainfo->offset + 8, arg->dreg+1);
+					break;
+#endif
+				default:
+					g_assert_not_reached();
+ 				}
 			default:
 				g_print("can't process Storage type %d\n",ainfo->storage);
 				NOT_IMPLEMENTED;
@@ -1091,6 +1164,7 @@ mono_arch_emit_setret (MonoCompile *cfg, MonoMethod *method, MonoInst *val)
 			MONO_EMIT_NEW_UNALU (cfg, OP_MOVE, cfg->ret->dreg, val->dreg);
 			break;
 		default:
+			g_print("can't process Storage type %d\n",cinfo->ret.storage);
 			NOT_IMPLEMENTED;
 	}
 }
