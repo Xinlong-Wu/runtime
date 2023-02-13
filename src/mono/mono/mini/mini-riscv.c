@@ -1485,9 +1485,6 @@ loop_start:
 			case OP_LSHL_IMM:
 			case OP_SHR_IMM:
 			case OP_SHR_UN_IMM:
-#if defined (TARGET_RISCV64)
-			case OP_SEXT_I4:
-#endif
 			
 			/* skip dummy IL */
 			case OP_NOT_REACHED:
@@ -1713,19 +1710,39 @@ loop_start:
 				}
 				break;
 			case OP_ICONV_TO_U1:
-				// slli rd, rs1, 24
-				// srli rd, rs1, 24
-				NEW_INS (cfg, ins, temp, OP_SHL_IMM);
-				temp->dreg = ins->dreg;
-				temp->sreg1 = ins->sreg1;
+				// andi rd, rs1, 255
+				ins->opcode = OP_AND_IMM;
+				ins->inst_imm = 255;
+				break;
+#ifdef TARGET_RISCV64:
+			case OP_SEXT_I4:{
+				ins->opcode = OP_RISCV_ADDIW;
+				ins->inst_imm = 0;
+			}
+			case OP_ZEXT_I4:{
+				// TODO: Add inst riscv_adduw in riscv-codegen.h
+				// if(riscv_stdext_b){
+				if(FALSE){
+					NOT_IMPLEMENTED;
+					ins->opcode = OP_RISCV_ADDUW;
+					ins->sreg2 = RISCV_ZERO;
+				}
+				else{
+					// slli a0, a1, 32
+					// srli a0, a0, 32
+					NEW_INS (cfg, ins, temp, OP_SHL_IMM);
+					temp->dreg = ins->dreg;
+					temp->sreg1 = ins->sreg1;
+					temp->inst_imm = 32;
 
-				ins->opcode = OP_SHR_UN_IMM;
-
-				if(ins->opcode == OP_ICONV_TO_U1){
-					temp->inst_imm = 24;
-					ins->inst_imm = 24;
+					ins->opcode = OP_SHR_UN_IMM;
+					ins->sreg1 = temp->dreg;
+					ins->inst_imm = 32;
 				}
 				break;
+			}
+#endif
+
 			default:
 				printf ("unable to lowering following IR:"); mono_print_ins (ins);
 				NOT_IMPLEMENTED;
@@ -2555,6 +2572,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				riscv_and(code, ins->dreg, ins->sreg1, ins->sreg2);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
+			case OP_AND_IMM:
 			case OP_LAND_IMM:
 				riscv_andi(code, ins->dreg, ins->sreg1, ins->inst_imm);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
@@ -2585,9 +2603,13 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
 #if defined(TARGET_RISCV64)
-			case OP_SEXT_I4:
+			case OP_RISCV_ADDIW:
 				riscv_addiw(code, ins->dreg, ins->sreg1, 0);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+				break;
+			case OP_RISCV_ADDUW:
+				// TODO: Add inst riscv_adduw in riscv-codegen.h
+				NOT_IMPLEMENTED;
 				break;
 #endif
 			/* Atomic */

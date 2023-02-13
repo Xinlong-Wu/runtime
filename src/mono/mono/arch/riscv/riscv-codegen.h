@@ -757,6 +757,8 @@ riscv_get_jal_disp (void *code, void *target)
 #define riscv_amomaxu_d(p, ordering, rd, rs2, rs1) _riscv_a_op  ((p), 0b0101111, 0b011, 0b11100, (ordering), (rd), (rs2), (rs1))
 #endif
 
+// TODO: RV64B
+
 // RV32F
 
 #define riscv_flw(p, rd, rs1, imm)                 _riscv_i_op  ((p), 0b0000111, 0b010, (rd), (rs1), (imm))
