@@ -1796,6 +1796,12 @@ MINI_OP(OP_RISCV_BEQ, "riscv_beq", NONE, IREG, IREG)
 MINI_OP(OP_RISCV_BNE, "riscv_bne", NONE, IREG, IREG)
 MINI_OP(OP_RISCV_BGE, "riscv_bge", NONE, IREG, IREG)
 
+MINI_OP(OP_RISCV_ADDIW, "riscv_addiw", IREG, IREG, NONE)
+
 MINI_OP(OP_RISCV_SLTIU, "riscv_sltiu", IREG, IREG, NONE)
 MINI_OP(OP_RISCV_SLT, "riscv_slt", IREG, IREG, IREG)
+#endif
+
+#if defined(TARGET_RISCV64)
+MINI_OP(OP_RISCV_ADDUW, "riscv_adduw", IREG, IREG, IREG)
 #endif

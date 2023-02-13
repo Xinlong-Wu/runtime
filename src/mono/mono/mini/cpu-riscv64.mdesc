@@ -74,13 +74,13 @@ long_add_imm: dest:i src1:i len:4
 long_add: dest:i src1:i src2:i len:4
 
 int_and: dest:i src1:i src2:i len:4
+and_imm: dest:i src1:i len:4
 long_and_imm: dest:i src1:i len:4
 xor_imm: dest:i src1:i len:4
 shl_imm: dest:i src1:i len:4
 long_shl_imm: dest:i src1:i len:4
 shr_imm: dest:i src1:i len:4
 shr_un_imm: dest:i src1:i len:4
-sext_i4: dest:i src1:i len:4
 
 riscv_beq: src1:i src2:i len:4
 riscv_exc_beq: src1:i src2:i len:28
@@ -88,6 +88,7 @@ riscv_bne: src1:i src2:i len:4
 riscv_bge: src1:i src2:i len:4
 riscv_slt: dest:i src1:i src2:i len:4
 riscv_sltiu: dest:i src1:i len:4
+riscv_addiw: dest:i src1:i len:4
 
 gc_safe_point: src1:i len:12 clob:c
 start_handler: len:8 clob:c
