@@ -588,10 +588,10 @@ add_valuetype (CallInfo *cinfo, ArgInfo *ainfo, MonoType *t){
 	else{
 		ainfo->storage = ArgVtypeInIReg;
 		ainfo->reg = cinfo->next_areg;
-		ainfo->size = sizeof(host_mgreg_t)*2;
+		ainfo->size = sizeof(host_mgreg_t);
 		ainfo->is_regpair = TRUE;
 
-		cinfo->next_areg += 2;
+		cinfo->next_areg = 1;
 	}
 }
 
@@ -640,7 +640,13 @@ add_param (CallInfo *cinfo, ArgInfo *ainfo, MonoType *t){
 			add_arg (cinfo, ainfo, 8, FALSE);
 			break;
 		case MONO_TYPE_GENERICINST:{
-			NOT_IMPLEMENTED;
+			if (!mono_type_generic_inst_is_valuetype (ptype)) {
+				add_arg (cinfo, ainfo, sizeof(host_mgreg_t), FALSE);
+			} else if (mini_is_gsharedvt_variable_type (ptype)) {
+				NOT_IMPLEMENTED;
+			} else {
+				add_valuetype (cinfo, ainfo, ptype);
+			}
 			break;
 		}
 		case MONO_TYPE_VALUETYPE:
@@ -1128,6 +1134,23 @@ mono_arch_emit_call (MonoCompile *cfg, MonoCallInst *call)
 					g_assert_not_reached();
  				}
 			}
+			case ArgVtypeInIReg :{
+				MonoInst *ins;
+				guint32 align;
+				guint32 size;
+				size = mono_class_value_size (arg->klass, &align);
+
+				MONO_INST_NEW (cfg, ins, OP_OUTARG_VT);
+				ins->sreg1 = arg->dreg;
+				ins->klass = arg->klass;
+				ins->backend.size = size;
+				ins->inst_p0 = call;
+				ins->inst_p1 = mono_mempool_alloc (cfg->mempool, sizeof (ArgInfo));
+				memcpy (ins->inst_p1, ainfo, sizeof (ArgInfo));
+				MONO_ADD_INS (cfg->cbb, ins);
+
+				break;
+			}
 			default:
 				g_print("can't process Storage type %d\n",ainfo->storage);
 				NOT_IMPLEMENTED;
@@ -1145,7 +1168,54 @@ mono_arch_emit_call (MonoCompile *cfg, MonoCallInst *call)
 void
 mono_arch_emit_outarg_vt (MonoCompile *cfg, MonoInst *ins, MonoInst *src)
 {
-	NOT_IMPLEMENTED;
+	MonoCallInst *call = (MonoCallInst*)ins->inst_p0;
+	ArgInfo *ainfo = (ArgInfo*)ins->inst_p1;
+	MonoInst *load;
+	int i,op_load = 0;
+
+#ifdef TARGET_RISCV64
+	op_load = OP_LOADI8_MEMBASE;
+#else //TARGET_RISCV32
+	op_load = OP_LOADI4_MEMBASE;
+#endif
+
+	if (ins->backend.size == 0)
+		return;
+
+	switch (ainfo->storage){
+		case ArgVtypeInIReg:{
+			MONO_INST_NEW (cfg, load, op_load);
+			load->dreg = mono_alloc_ireg (cfg);
+			load->inst_basereg = src->dreg;
+			load->inst_offset = sizeof (host_mgreg_t);
+			MONO_ADD_INS (cfg->cbb, load);
+			add_outarg_reg (cfg, call, ArgInIReg, ainfo->reg, load);
+
+			if(ainfo->size > sizeof (host_mgreg_t)){
+				MONO_INST_NEW (cfg, load, op_load);
+				load->dreg = mono_alloc_ireg (cfg);
+				load->inst_basereg = src->dreg;
+				load->inst_offset = 2 * sizeof (target_mgreg_t);
+				MONO_ADD_INS (cfg->cbb, load);
+				add_outarg_reg (cfg, call, ArgInIReg, ainfo->reg + 1, load);
+			}
+		}
+		case ArgVtypeOnStack:{
+			g_assert(ainfo->offset >= 0);
+			for (i = 0; i < ainfo->slot_size; i += sizeof (target_mgreg_t)) {
+				MONO_INST_NEW (cfg, load, op_load);
+				load->dreg = mono_alloc_ireg (cfg);
+				load->inst_basereg = src->dreg;
+				load->inst_offset = i;
+				MONO_ADD_INS (cfg->cbb, load);
+				MONO_EMIT_NEW_STORE_MEMBASE (cfg, op_load, RISCV_FP, -ainfo->offset + i, load->dreg);
+			}
+			break;
+		}
+		default:
+			NOT_IMPLEMENTED;
+			break;
+	}
 }
 
 void
@@ -1180,8 +1250,15 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_IADD_IMM:
 		case OP_LAND_IMM:
 		case OP_ICONV_TO_I:
+		case OP_ICONV_TO_U:
+		case OP_ICONV_TO_I1:
 		case OP_ICONV_TO_U1:
+		case OP_ICONV_TO_I2:
 		case OP_ICONV_TO_U2:
+#ifdef TARGET_RISCV64
+		case OP_ICONV_TO_I4:
+		case OP_ICONV_TO_U4:
+#endif
 		case OP_LCONV_TO_I:
 		case OP_LMUL_IMM:
 			break;
