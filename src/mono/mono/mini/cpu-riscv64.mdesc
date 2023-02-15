@@ -46,6 +46,7 @@ rethrow: src1:i len:4
 
 br: len:4
 call: dest:a len:4 clob:c
+call_membase: src1:b len:4 clob:c
 voidcall: len:4 clob:c
 voidcall_reg: src1:i len:4 clob:c
 voidcall_membase: src1:b len:4 clob:c
