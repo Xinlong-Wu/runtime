@@ -35,10 +35,14 @@ il_seq_point: len:0
 seq_point: len:0
 
 check_this: src1:b len:4
-
+get_ex_obj: dest:i len:4
+gc_safe_point: src1:i len:12 clob:c
+start_handler: len:8 clob:c
+call_handler: len:4 clob:c
+endfinally: len:32
+localloc: dest:i src1:i len:48
 throw: src1:i len:4
 rethrow: src1:i len:4
-get_ex_obj: dest:i len:4
 
 br: len:4
 call: dest:a len:4 clob:c
@@ -89,8 +93,3 @@ riscv_bge: src1:i src2:i len:4
 riscv_slt: dest:i src1:i src2:i len:4
 riscv_sltiu: dest:i src1:i len:4
 riscv_addiw: dest:i src1:i len:4
-
-gc_safe_point: src1:i len:12 clob:c
-start_handler: len:8 clob:c
-call_handler: len:4 clob:c
-endfinally: len:32
