@@ -174,6 +174,7 @@ typedef struct {
 	CallInfo *cinfo;
 	int saved_gregs_offset;
 	guint32 saved_iregs;
+	MonoInst *vret_addr_loc;
 	MonoInst *seq_point_info_var;
 	MonoInst *ss_tramp_var;
 	MonoInst *bp_tramp_var;
