@@ -2037,9 +2037,12 @@ mono_riscv_emit_branch_exc (MonoCompile *cfg, guint8 *code, const MonoInst ins, 
 	switch(ins.opcode){
 		case OP_RISCV_EXC_BEQ:
 			riscv_beq(code, ins.sreg1, ins.sreg2, 0);
+			break;
 		case OP_RISCV_EXC_BNE:
 			riscv_bne(code, ins.sreg1, ins.sreg2, 0);
+			break;
 		default:
+			g_print("can't emit exc branch %d\n", ins.opcode);
 			NOT_IMPLEMENTED;
 	}
 	return code;
