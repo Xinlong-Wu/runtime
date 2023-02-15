@@ -661,7 +661,7 @@ mono_arch_get_interp_to_native_trampoline (MonoTrampInfo **info)
 	riscv_addi (code, RISCV_T0, RISCV_T0, -sizeof (target_mgreg_t));
 	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
 
-	riscv_jal (code, RISCV_ZERO, label_start_copy - code);
+	riscv_jal (code, RISCV_ZERO, riscv_get_jal_disp(code,label_start_copy));
 	MONO_ARCH_DUMP_CODE_DEBUG(code,1);
 	mono_riscv_patch(label_start_copy, code, MONO_R_RISCV_BEQ);
 
