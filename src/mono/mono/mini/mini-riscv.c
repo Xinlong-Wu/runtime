@@ -1340,6 +1340,13 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 				cfg->ret->inst_c0 = cinfo->ret.reg;
 				cfg->ret->dreg = cinfo->ret.reg;
 				break;
+			case ArgVtypeInIReg:
+				/* Allocate a local to hold the result, the epilog will copy it to the correct place */
+				cfg->ret->opcode = OP_REGOFFSET;
+				cfg->ret->inst_basereg = cfg->frame_reg;
+				cfg->ret->inst_offset = offset;
+				offset += sizeof (host_mgreg_t) * 2;
+				break;
 			default:
 				g_print("Can't handle storage type %d\n",cinfo->ret.storage);
 				NOT_IMPLEMENTED;
@@ -2449,6 +2456,13 @@ mono_arch_emit_epilog (MonoCompile *cfg)
 		case ArgNone:
 		case ArgInIReg:
 			break;
+		case ArgVtypeInIReg:{
+			MonoInst *ins = cfg->ret;
+			code = mono_riscv_emit_load (code, cinfo->ret.reg, ins->inst_basereg, ins->inst_offset, 0);
+			if(cinfo->ret.is_regpair)
+				code = mono_riscv_emit_load (code, cinfo->ret.reg + 1, ins->inst_basereg, ins->inst_offset + sizeof(host_mgreg_t), 0);
+			break;
+		}
 		default:
 			g_print("Unable process returned storage %d(0x%x)\n",cinfo->ret.storage,cinfo->ret.storage);
 			NOT_IMPLEMENTED;
