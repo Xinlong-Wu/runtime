@@ -1485,6 +1485,7 @@ loop_start:
 			case OP_LSHL_IMM:
 			case OP_SHR_IMM:
 			case OP_SHR_UN_IMM:
+			case OP_LOCALLOC:
 			
 			/* skip dummy IL */
 			case OP_NOT_REACHED:
@@ -2449,8 +2450,10 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_NOT_NULL:
 			case OP_DUMMY_USE:
 				break;
-			//  try to load 1 byte from ins->sreg to check it is null pionter
+			
+			/* VM Related OP */
 			case OP_CHECK_THIS:
+			//  try to load 1 byte from ins->sreg to check it is null pionter
 				code = mono_riscv_emit_load (code, RISCV_RA, ins->sreg1, 0, 1);
 				break;
 			case OP_GET_EX_OBJ:
@@ -2499,6 +2502,46 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				}
 				break;
 			}
+			case OP_LOCALLOC:{
+				g_assert(MONO_ARCH_FRAME_ALIGNMENT == 16);
+				guint8 *branch_lable;
+				guint8 *loop_start;
+				// ins->sreg1 stores the size of new object.
+				// 1. Align the object size to MONO_ARCH_FRAME_ALIGNMENT
+				// RISCV_T0 = ALIGN_TO(ins->sreg1, MONO_ARCH_FRAME_ALIGNMENT)
+				riscv_addi(code, RISCV_T0, ins->sreg1, (MONO_ARCH_FRAME_ALIGNMENT - 1));
+				code = mono_riscv_emit_imm(code, RISCV_T1, -MONO_ARCH_FRAME_ALIGNMENT);
+				riscv_and (code, RISCV_T0, RISCV_T0, RISCV_T1);
+
+				// 2. extend sp for Object
+				riscv_addi(code, RISCV_T1, RISCV_SP, 0);
+				riscv_sub(code, RISCV_SP, RISCV_T1, RISCV_T0);
+
+				// 3.
+				/* Init */
+				/* T0 = pointer, T1 = end */
+				riscv_addi(code, RISCV_T0, RISCV_SP, 0);
+				loop_start = code;
+				riscv_beq(code, RISCV_T0, RISCV_T1, 0);
+				branch_lable = code;
+				code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, 0, 0);
+				code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, sizeof(host_mgreg_t), 0), 0;
+#ifdef TARGET_RISCV32
+				code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, sizeof(host_mgreg_t)*2, 0);
+				code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, sizeof(host_mgreg_t)*3, 0);
+#endif
+				riscv_addi(code, RISCV_T0, RISCV_T0, MONO_ARCH_FRAME_ALIGNMENT);
+				riscv_jal(code, RISCV_ZERO, riscv_get_jal_disp(code, loop_start));
+				riscv_patch_rel(branch_lable, code, MONO_R_RISCV_BEQ);
+
+				riscv_addi(code, ins->dreg, RISCV_SP, 0);
+				if (cfg->param_area){
+					g_assert(cfg->param_area > 0);
+					riscv_addi(code, RISCV_SP, RISCV_SP, -cfg->param_area);
+				}
+				break;
+			}
+
 			case OP_NOP:
 				code = mono_riscv_emit_nop(code);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
@@ -2793,8 +2836,9 @@ mono_arch_emit_exceptions (MonoCompile *cfg)
 		ji->type = MONO_PATCH_INFO_JIT_ICALL_ID;
 		ji->data.jit_icall_id = MONO_JIT_ICALL_mono_arch_throw_corlib_exception;
 		ji->relocation = MONO_R_RISCV_JAL;
-
 		riscv_jal (code, RISCV_RA, 0);
+
+		cfg->thunk_area += THUNK_SIZE;
 		set_code_cursor (cfg, code);
 	}
 
