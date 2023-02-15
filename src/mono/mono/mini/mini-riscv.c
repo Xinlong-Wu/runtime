@@ -1049,31 +1049,41 @@ mono_arch_emit_call (MonoCompile *cfg, MonoCallInst *call)
 	cinfo = get_call_info (cfg->mempool, sig);
 
 	/* Emit the inst of return at mono_arch_emit_setret() */
-	// switch (cinfo->ret.storage){
-	// 	case ArgVtypeInIReg:
-	// 		/*
-	// 		* The vtype is returned in registers, save the return area address in a local, and save the vtype into
-	// 		* the location pointed to by it after call in emit_move_return_value ().
-	// 		*/
-	// 		NOT_IMPLEMENTED;
-	// 		break;
-	// 	case ArgVtypeByRef:
-	// 		NOT_IMPLEMENTED;
-	// 		break;
-	// 	case ArgVtypeByRefOnStack:
-	// 		NOT_IMPLEMENTED;
-	// 		break;
-	// 	case ArgVtypeOnStack:
-	// 		NOT_IMPLEMENTED;
-	// 		break;
-	// 	case ArgVtypeInMixed:
-	// 		NOT_IMPLEMENTED;
-	// 		break;
-	// 	default:
-	// 		g_print("unable process storage type %d\n",cinfo->ret.storage); 
-	// 		NOT_IMPLEMENTED;
-	// 		break;
-	// }
+	switch (cinfo->ret.storage){
+		case ArgVtypeInIReg:
+			if (MONO_IS_TAILCALL_OPCODE (call))
+				break;
+			/*
+			* The vtype is returned in registers, save the return area address in a local, and save the vtype into
+			* the location pointed to by it after call in emit_move_return_value ().
+			*/
+			if (!cfg->arch.vret_addr_loc){
+				cfg->arch.vret_addr_loc = mono_compile_create_var (cfg, mono_get_int_type (), OP_LOCAL);
+				/* Prevent it from being register allocated or optimized away */
+				cfg->arch.vret_addr_loc->flags |= MONO_INST_VOLATILE;
+			}
+			MONO_EMIT_NEW_UNALU (cfg, OP_MOVE, cfg->arch.vret_addr_loc->dreg, call->vret_var->dreg);
+			break;
+		case ArgVtypeByRef:
+			g_assert (!MONO_IS_TAILCALL_OPCODE (call) || call->vret_var == cfg->vret_addr);
+			MONO_INST_NEW (cfg, vtarg, OP_MOVE);
+			vtarg->sreg1 = call->vret_var->dreg;
+			vtarg->dreg = mono_alloc_preg (cfg);
+			MONO_ADD_INS (cfg->cbb, vtarg);
+			mono_call_inst_add_outarg_reg (cfg, call, vtarg->dreg, cinfo->ret.reg, FALSE);
+			break;
+		case ArgVtypeByRefOnStack:
+			NOT_IMPLEMENTED;
+			break;
+		case ArgVtypeOnStack:
+			NOT_IMPLEMENTED;
+			break;
+		case ArgVtypeInMixed:
+			NOT_IMPLEMENTED;
+			break;
+		default:
+			break;
+	}
 
 	// if (cinfo->struct_ret)
 	// 	// call->used_iregs |= 1 << cinfo->struct_ret;
@@ -2226,9 +2236,22 @@ emit_move_return_value (MonoCompile *cfg, guint8 * code, MonoInst *ins){
 			break;
 		case ArgInIReg:
 			if (call->inst.dreg != cinfo->ret.reg){
-				NOT_IMPLEMENTED;
+				riscv_addi(code, call->inst.dreg, cinfo->ret.reg, 0);
 			}
 			break;
+		case ArgVtypeInIReg:{
+			MonoInst *loc = cfg->arch.vret_addr_loc;
+			int i;
+
+			/* Load the destination address */
+			g_assert (loc && loc->opcode == OP_REGOFFSET);
+			code = mono_riscv_emit_load (code, RISCV_T0, loc->inst_basereg, loc->inst_offset, 0);
+			code = mono_riscv_emit_load (code, cinfo->ret.reg, RISCV_T0, 0, 0);
+			if(cinfo->ret.is_regpair){
+				code = mono_riscv_emit_load (code, cinfo->ret.reg + 1, RISCV_T0, sizeof(host_mgreg_t), 0);
+			}
+			break;
+		}
 		default:
 			NOT_IMPLEMENTED;
 			break;
@@ -2684,11 +2707,13 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				// use JALR x1, 0(src1)
 				riscv_jalr(code, RISCV_RA, ins->sreg1, 0);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+				code = emit_move_return_value(cfg, code, ins);
 				break;
 			case OP_CALL_MEMBASE:
 			case OP_VOIDCALL_MEMBASE:
 				riscv_jalr(code, RISCV_RA, ins->inst_basereg, ins->inst_offset);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+				code = emit_move_return_value(cfg, code, ins);
 				break;
 
 			/* Branch */
