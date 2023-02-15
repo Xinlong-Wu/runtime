@@ -1552,9 +1552,12 @@ loop_start:
 				break;
 			// RISC-V dosn't support store Imm to Memory directly
 			// store Imm into Reg firstly.
-			case OP_STORE_MEMBASE_IMM:
 			case OP_STOREI1_MEMBASE_IMM:
-			case OP_STOREI4_MEMBASE_IMM:{
+			case OP_STOREI4_MEMBASE_IMM:
+#ifdef TARGET_RISCV64
+			case OP_STOREI8_MEMBASE_IMM:
+#endif
+			case OP_STORE_MEMBASE_IMM:{
 				if(ins->inst_imm != 0){
 					NEW_INS (cfg, ins, temp, OP_ICONST);
 					temp->inst_c0 = ins->inst_imm;
@@ -1576,6 +1579,11 @@ loop_start:
 					case OP_STOREI4_MEMBASE_IMM:
 						ins->opcode = OP_STOREI4_MEMBASE_REG;
 						break;
+#ifdef TARGET_RISCV64
+					case OP_STOREI8_MEMBASE_IMM:
+						ins->opcode = OP_STOREI8_MEMBASE_REG;
+						break;
+#endif
 					default:
 						g_assert_not_reached();
 						break;
@@ -1583,25 +1591,29 @@ loop_start:
 				goto loop_start; /* make it handle the possibly big ins->inst_offset */
 			}
 			// Inst S{B|H|W|D} use I-type Imm
-			case OP_STORE_MEMBASE_REG:
 			case OP_STOREI1_MEMBASE_REG:
 			case OP_STOREI2_MEMBASE_REG:
 			case OP_STOREI4_MEMBASE_REG:
-			case OP_STOREI8_MEMBASE_REG:{
+#ifdef TARGET_RISCV64
+			case OP_STOREI8_MEMBASE_REG:
+#endif
+			case OP_STORE_MEMBASE_REG:{
 				// check if offset is valid I-type Imm
 				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_offset)))
 					NOT_IMPLEMENTED;
 				break;
 			}
 			// Inst L{B|H|W|D} use I-type Imm
-			case OP_LOAD_MEMBASE:
 			case OP_LOADI1_MEMBASE:
 			case OP_LOADU1_MEMBASE:
 			case OP_LOADI2_MEMBASE:
 			case OP_LOADU2_MEMBASE:
 			case OP_LOADI4_MEMBASE:
 			case OP_LOADU4_MEMBASE:
+#ifdef TARGET_RISCV64
 			case OP_LOADI8_MEMBASE:
+#endif		
+			case OP_LOAD_MEMBASE:
 				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_imm))){
 					NEW_INS (cfg, ins, temp, OP_ICONST);
 					temp->inst_c0 = (ins->inst_imm >> 12) << 12;
