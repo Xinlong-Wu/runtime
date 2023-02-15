@@ -1629,7 +1629,7 @@ loop_start:
 							break;
 						}
 					}
-					else if(ins->next->opcode == OP_LCGT_UN || ins->next->opcode == OP_LCGT_UN){
+					else if(ins->next->opcode == OP_LCGT_UN || ins->next->opcode == OP_ICGT_UN){
 						if(RISCV_VALID_I_IMM(ins->inst_imm + 1)){
 							ins->opcode = OP_RISCV_SLTIU;
 							ins->dreg = ins->next->dreg;
