@@ -1506,9 +1506,10 @@ loop_start:
 
 			/* skip custom OP code*/
 			case OP_RISCV_BEQ:
-			case OP_RISCV_EXC_BEQ:
 			case OP_RISCV_BNE:
 			case OP_RISCV_BGE:
+			case OP_RISCV_EXC_BEQ:
+			case OP_RISCV_EXC_BNE:
 			case OP_RISCV_SLT:
 			case OP_RISCV_SLTIU:
 				break;
@@ -1617,7 +1618,7 @@ loop_start:
 			case OP_LOAD_MEMBASE:
 				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_imm))){
 					NEW_INS (cfg, ins, temp, OP_ICONST);
-					temp->inst_c0 = (ins->inst_imm >> 12) << 12;
+					temp->inst_c0 = (ins->inst_imm & 0xfff);
 					temp->dreg = mono_alloc_ireg (cfg);
 					ins->sreg1 = temp->dreg;
 					ins->inst_imm = 0;
@@ -1629,7 +1630,7 @@ loop_start:
 			case OP_LADD_IMM:
 				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_imm))){
 					NEW_INS (cfg, ins, temp, OP_ICONST);
-					temp->inst_c0 = (ins->inst_imm >> 12) << 12;
+					temp->inst_c0 = (ins->inst_imm & 0xfff);
 					temp->dreg = mono_alloc_ireg (cfg);
 					ins->sreg2 = temp->dreg;
 					ins->inst_imm = 0;
@@ -1668,22 +1669,33 @@ loop_start:
 						}
 					}
 				}
-				else{
+				else
 					g_assert_not_reached();
-				}
 
 				if(ins->inst_imm == 0){
 					ins->sreg2 = RISCV_ZERO;
 				}
-				else{
-					NOT_IMPLEMENTED;
+				else if(RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_imm))){
+					NEW_INS (cfg, ins, temp, OP_ICONST);
+					temp->inst_c0 = (ins->inst_imm & 0xfff);
+					temp->dreg = mono_alloc_ireg (cfg);
+					ins->sreg2 = temp->dreg;
+					ins->inst_imm = 0;
 				}
+				else
+					NOT_IMPLEMENTED;
 			}
 			case OP_ICOMPARE:
 			case OP_LCOMPARE:{
 				if (ins->next){
 					if(ins->next->opcode == OP_COND_EXC_EQ){
 						ins->next->opcode = OP_RISCV_EXC_BEQ;
+						ins->next->sreg1 = ins->sreg1;
+						ins->next->sreg2 = ins->sreg2;
+						NULLIFY_INS (ins);
+					}
+					if(ins->next->opcode == OP_COND_EXC_NE_UN){
+						ins->next->opcode = OP_RISCV_EXC_BNE;
 						ins->next->sreg1 = ins->sreg1;
 						ins->next->sreg2 = ins->sreg2;
 						NULLIFY_INS (ins);
@@ -1727,7 +1739,7 @@ loop_start:
 			case OP_LAND_IMM:
 				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_imm))){
 					NEW_INS (cfg, ins, temp, OP_ICONST);
-					temp->inst_c0 = (ins->inst_imm >> 12) << 12;
+					temp->inst_c0 = (ins->inst_imm & 0xfff);
 					temp->dreg = mono_alloc_ireg (cfg);
 					ins->sreg2 = temp->dreg;
 					ins->inst_imm = 0;
@@ -2007,28 +2019,31 @@ mono_riscv_emit_call (MonoCompile *cfg, guint8* code, MonoJumpInfoType patch_typ
 	return code;
 }
 
+/* This clobbers RA */
 static guint8 *
 mono_riscv_emit_branch_exc (MonoCompile *cfg, guint8 *code, const MonoInst ins, const char *exc_name){
-	if(ins.opcode == OP_RISCV_EXC_BEQ){
-		guint8 *p;
+	// guint8 *p;
 
-		riscv_auipc(code, RISCV_T0, 0);
-		// load imm
-		riscv_jal (code, RISCV_T1, sizeof (guint64) + 4);
-		p = code;
-		code += sizeof (guint64);
-		riscv_ld (code, RISCV_T1, RISCV_T1, 0);
-		// pc + imm
-		riscv_add(code, RISCV_T0, RISCV_T0, RISCV_T1);
+	// riscv_auipc(code, RISCV_T0, 0);
+	// // load imm
+	// riscv_jal (code, RISCV_T1, sizeof (guint64) + 4);
+	// p = code;
+	// code += sizeof (guint64);
+	// riscv_ld (code, RISCV_T1, RISCV_T1, 0);
+	// // pc + imm
+	// riscv_add(code, RISCV_T0, RISCV_T0, RISCV_T1);
 
-		*(guint64 *)p = (gsize)code;
-		mono_add_patch_info_rel (cfg, code - cfg->native_code, MONO_PATCH_INFO_EXC, exc_name, MONO_R_RISCV_BEQ);
-		riscv_beq(code, ins.sreg1, ins.sreg2, 0);
+	// *(guint64 *)p = (gsize)code;
+	// mono_add_patch_info_rel (cfg, code - cfg->native_code, MONO_PATCH_INFO_EXC, exc_name, MONO_R_RISCV_BEQ);
+	
+	switch(ins.opcode){
+		case OP_RISCV_EXC_BEQ:
+			riscv_beq(code, ins.sreg1, ins.sreg2, 0);
+		case OP_RISCV_EXC_BNE:
+			riscv_bne(code, ins.sreg1, ins.sreg2, 0);
+		default:
+			NOT_IMPLEMENTED;
 	}
-	else{
-		NOT_IMPLEMENTED;
-	}
-
 	return code;
 }
 
@@ -2751,6 +2766,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				riscv_jal (code, RISCV_ZERO, 0);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
+			case OP_RISCV_EXC_BNE:
 			case OP_RISCV_EXC_BEQ:{
 				code = mono_riscv_emit_branch_exc (cfg, code, *ins, (const char*)ins->inst_p1);
 				break;
