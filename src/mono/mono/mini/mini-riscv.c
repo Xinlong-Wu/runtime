@@ -1480,6 +1480,7 @@ loop_start:
 			case OP_GC_SAFE_POINT:
 			case OP_BR:
 			case OP_CALL:
+			case OP_VCALL2:
 			case OP_VOIDCALL:
 			case OP_START_HANDLER:
 			case OP_CALL_HANDLER:
@@ -2707,7 +2708,8 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 
 			/* Calls */
 			case OP_CALL:
-			case OP_VOIDCALL:{
+			case OP_VOIDCALL:
+			case OP_VCALL2: {
 				call = (MonoCallInst*)ins;
 				const MonoJumpInfoTarget patch = mono_call_to_patch (call);
 				code = mono_riscv_emit_call (cfg, code, patch.type, patch.target);

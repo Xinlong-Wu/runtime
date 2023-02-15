@@ -50,6 +50,7 @@ call_membase: dest:a src1:b len:4 clob:c
 voidcall: len:4 clob:c
 voidcall_reg: src1:i len:4 clob:c
 voidcall_membase: src1:b len:4 clob:c
+vcall2: len:4 clob:c
 
 store_membase_reg: dest:b src1:i len:4
 storei1_membase_reg: dest:b src1:i len:4
