@@ -166,10 +166,6 @@ extern gboolean riscv_stdext_a, riscv_stdext_b, riscv_stdext_c,
 
 #define THUNK_SIZE (4 * 4 + 8)
 
-#define MONO_ARCH_DUMP_CODE_DEBUG(code, is_output) \
-	if (is_output) \
-		g_print("<0x%lx> [0x%x, 0x%x, 0x%x, 0x%x]\n",code-4,*(code-4),*(code-3),*(code-2),*(code-1));
-
 typedef struct {
 	CallInfo *cinfo;
 	int saved_gregs_offset;
