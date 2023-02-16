@@ -1657,30 +1657,29 @@ loop_start:
 			case OP_LCOMPARE_IMM:{
 				if (ins->next){
 					if(ins->next->opcode == OP_LCEQ || ins->next->opcode == OP_ICEQ){
-						if(RISCV_VALID_I_IMM(ins->inst_imm)){
-							ins->opcode = OP_ADD_IMM;
-							ins->dreg = mono_alloc_ireg (cfg);
-							ins->inst_imm = -ins->inst_imm;
+						g_assert(RISCV_VALID_I_IMM(ins->inst_imm));
+							
+						ins->opcode = OP_ADD_IMM;
+						ins->dreg = mono_alloc_ireg (cfg);
+						ins->inst_imm = -ins->inst_imm;
 
-							ins->next->opcode = OP_RISCV_SLTIU;
-							ins->next->sreg1 = ins->dreg;
-							ins->next->inst_imm = 1;
-							break;
-						}
+						ins->next->opcode = OP_RISCV_SLTIU;
+						ins->next->sreg1 = ins->dreg;
+						ins->next->inst_imm = 1;
+						break;
 					}
 					else if(ins->next->opcode == OP_LCGT_UN || ins->next->opcode == OP_ICGT_UN){
-						if(RISCV_VALID_I_IMM(ins->inst_imm + 1)){
-							ins->opcode = OP_RISCV_SLTIU;
-							ins->dreg = ins->next->dreg;
-							ins->sreg1 = ins->sreg1;
-							ins->inst_imm = ins->next->inst_imm + 1;
+						g_assert(RISCV_VALID_I_IMM(ins->inst_imm + 1));
+						ins->opcode = OP_RISCV_SLTIU;
+						ins->dreg = ins->next->dreg;
+						ins->sreg1 = ins->sreg1;
+						ins->inst_imm = ins->inst_imm + 1;
 
-							ins->next->opcode = OP_XOR_IMM;
-							ins->next->dreg = ins->dreg;
-							ins->next->sreg1 = ins->dreg;
-							ins->next->inst_imm = 1;
-							break;
-						}
+						ins->next->opcode = OP_XOR_IMM;
+						ins->next->dreg = ins->dreg;
+						ins->next->sreg1 = ins->dreg;
+						ins->next->inst_imm = 1;
+						break;
 					}
 				}
 				else
@@ -1696,6 +1695,8 @@ loop_start:
 					ins->sreg2 = temp->dreg;
 					ins->inst_imm = 0;
 				}
+				ins->opcode = OP_ICOMPARE;
+				goto loop_start;
 			}
 			case OP_ICOMPARE:
 			case OP_LCOMPARE:{
@@ -1729,6 +1730,13 @@ loop_start:
 						ins->next->sreg1 = ins->sreg1;
 						ins->next->sreg2 = ins->sreg2;
 						NULLIFY_INS (ins);
+					}
+					else if(ins->next->opcode == OP_LBLE || ins->next->opcode == OP_IBLE){
+						// ble rs1, rs2  -> bge rs2, rs1
+						ins->next->opcode = OP_RISCV_BGE;
+						ins->next->sreg1 = ins->sreg2;
+						ins->next->sreg2 = ins->sreg1;
+						break;
 					}
 					else if(ins->next->opcode == OP_LCLT || ins->next->opcode == OP_ICLT){
 						ins->next->opcode = OP_RISCV_SLT;
@@ -2702,6 +2710,9 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_RISCV_SLT:
 				riscv_slt(code, ins->dreg, ins->sreg1, ins->sreg2);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+				break;
+			case OP_RISCV_SLTI:
+				riscv_slti(code, ins->dreg, ins->sreg1, ins->inst_imm);
 				break;
 			case OP_RISCV_SLTIU:
 				riscv_sltiu(code, ins->dreg, ins->sreg1, ins->inst_imm);
