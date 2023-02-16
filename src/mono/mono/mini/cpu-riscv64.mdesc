@@ -97,6 +97,7 @@ riscv_bne: src1:i src2:i len:4
 riscv_bge: src1:i src2:i len:4
 riscv_exc_beq: src1:i src2:i len:4
 riscv_exc_bne: src1:i src2:i len:4
+riscv_exc_bltu: src1:i src2:i len:4
 riscv_slt: dest:i src1:i src2:i len:4
 riscv_slti: dest:i src1:i len:4
 riscv_sltiu: dest:i src1:i len:4
