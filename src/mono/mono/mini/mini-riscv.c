@@ -1523,6 +1523,17 @@ loop_start:
 			case OP_ATOMIC_CAS_I8:
 				break;
 
+			case OP_LOCALLOC_IMM:{
+				if (ins->inst_imm > 32){
+					NEW_INS (cfg, ins, temp, OP_ICONST);
+					temp->inst_c0 = ins->inst_imm;
+					temp->dreg = mono_alloc_ireg (cfg);
+					ins->sreg1 = temp->dreg;
+					ins->opcode = OP_LOCALLOC;
+				}
+				break;
+			}
+
 			case OP_CALL_MEMBASE:
 			case OP_VOIDCALL_MEMBASE:
 				if(!RISCV_VALID_J_IMM(ins->inst_offset)){
@@ -1757,6 +1768,12 @@ loop_start:
 						ins->next->opcode = OP_RISCV_SLTIU;
 						ins->next->sreg1 = ins->sreg1;
 						ins->next->sreg2 = ins->sreg2;
+						NULLIFY_INS (ins);
+					}
+					else if(ins->next->opcode == OP_LCGT_UN || ins->next->opcode == OP_ICGT_UN){
+						ins->next->opcode = OP_RISCV_SLT;
+						ins->next->sreg1 = ins->sreg2;
+						ins->next->sreg2 = ins->sreg1;
 						NULLIFY_INS (ins);
 					}
 					else {
@@ -2652,6 +2669,32 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				riscv_addi(code, RISCV_T0, RISCV_T0, MONO_ARCH_FRAME_ALIGNMENT);
 				riscv_jal(code, RISCV_ZERO, riscv_get_jal_disp(code, loop_start));
 				riscv_patch_rel(branch_label, code, MONO_R_RISCV_BEQ);
+
+				riscv_addi(code, ins->dreg, RISCV_SP, 0);
+				if (cfg->param_area){
+					g_assert(cfg->param_area > 0);
+					riscv_addi(code, RISCV_SP, RISCV_SP, -cfg->param_area);
+				}
+				break;
+			}
+			case OP_LOCALLOC_IMM:{
+				int aligned_imm, aligned_imm_offset;
+				aligned_imm = ALIGN_TO (ins->inst_imm, MONO_ARCH_FRAME_ALIGNMENT);
+				g_assert (RISCV_VALID_I_IMM(aligned_imm));
+				riscv_addi(code, RISCV_SP, RISCV_SP, -aligned_imm);
+
+				/* Init */
+				g_assert (MONO_ARCH_FRAME_ALIGNMENT == 16);
+				aligned_imm_offset = 0;
+				while (aligned_imm_offset < aligned_imm){
+					code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, 0, 0);
+					code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, sizeof(host_mgreg_t), 0), 0;
+#ifdef TARGET_RISCV32
+					code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, sizeof(host_mgreg_t)*2, 0);
+					code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, sizeof(host_mgreg_t)*3, 0);
+#endif
+					aligned_imm_offset += 16;
+				}
 
 				riscv_addi(code, ins->dreg, RISCV_SP, 0);
 				if (cfg->param_area){
