@@ -2258,6 +2258,7 @@ emit_move_args (MonoCompile *cfg, guint8 *code){
 			
 			switch (ainfo->storage){
 				case ArgInIReg:
+					g_assert(ainfo->is_regpair == FALSE);
 					code = mono_riscv_emit_store(code, ainfo->reg, ins->inst_basereg, ins->inst_offset, 0);
 					MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 					if (i == 0 && sig->hasthis) {
@@ -2265,7 +2266,13 @@ emit_move_args (MonoCompile *cfg, guint8 *code){
 						mono_add_var_location (cfg, ins, FALSE, ins->inst_basereg, ins->inst_offset, code - cfg->native_code, 0);
 					}
 					break;
+				case ArgVtypeInIReg:
+					code = mono_riscv_emit_store(code, ainfo->reg, ins->inst_basereg, ins->inst_offset, 0);
+					if(ainfo->is_regpair)
+						code = mono_riscv_emit_store(code, ainfo->reg + 1, ins->inst_basereg, ins->inst_offset + sizeof(host_mgreg_t), 0);
+					break;
 				default:
+					g_print("can't process Storage type %d\n",ainfo->storage);
 					NOT_IMPLEMENTED;
 			}
 		}
