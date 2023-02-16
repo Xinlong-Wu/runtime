@@ -1506,6 +1506,7 @@ loop_start:
 			case OP_RISCV_BGE:
 			case OP_RISCV_EXC_BEQ:
 			case OP_RISCV_EXC_BNE:
+			case OP_RISCV_EXC_BLTU:
 			case OP_RISCV_SLT:
 			case OP_RISCV_SLTIU:
 				break;
@@ -1668,6 +1669,19 @@ loop_start:
 						ins->next->inst_imm = 1;
 						break;
 					}
+					else if(ins->next->opcode == OP_LCGT || ins->next->opcode == OP_ICGT){
+						g_assert(RISCV_VALID_I_IMM(ins->inst_imm + 1));
+						ins->opcode = OP_RISCV_SLTI;
+						ins->dreg = ins->next->dreg;
+						ins->sreg1 = ins->sreg1;
+						ins->inst_imm = ins->inst_imm + 1;
+
+						ins->next->opcode = OP_XOR_IMM;
+						ins->next->dreg = ins->dreg;
+						ins->next->sreg1 = ins->dreg;
+						ins->next->inst_imm = 1;
+						break;
+					}
 				}
 				else
 					g_assert_not_reached();
@@ -1694,8 +1708,14 @@ loop_start:
 						ins->next->sreg2 = ins->sreg2;
 						NULLIFY_INS (ins);
 					}
-					if(ins->next->opcode == OP_COND_EXC_NE_UN){
+					else if(ins->next->opcode == OP_COND_EXC_NE_UN){
 						ins->next->opcode = OP_RISCV_EXC_BNE;
+						ins->next->sreg1 = ins->sreg1;
+						ins->next->sreg2 = ins->sreg2;
+						NULLIFY_INS (ins);
+					}
+					else if(ins->next->opcode == OP_COND_EXC_LT_UN){
+						ins->next->opcode = OP_RISCV_EXC_BLTU;
 						ins->next->sreg1 = ins->sreg1;
 						ins->next->sreg2 = ins->sreg2;
 						NULLIFY_INS (ins);
@@ -1723,7 +1743,7 @@ loop_start:
 						ins->next->opcode = OP_RISCV_BGE;
 						ins->next->sreg1 = ins->sreg2;
 						ins->next->sreg2 = ins->sreg1;
-						break;
+						NULLIFY_INS (ins);
 					}
 					else if(ins->next->opcode == OP_LCLT || ins->next->opcode == OP_ICLT){
 						ins->next->opcode = OP_RISCV_SLT;
@@ -2044,6 +2064,9 @@ mono_riscv_emit_branch_exc (MonoCompile *cfg, guint8 *code, const MonoInst ins, 
 			break;
 		case OP_RISCV_EXC_BNE:
 			riscv_bne(code, ins.sreg1, ins.sreg2, 0);
+			break;
+		case OP_RISCV_EXC_BLTU:
+			riscv_bltu(code, ins.sreg1, ins.sreg2, 0);
 			break;
 		default:
 			g_print("can't emit exc branch %d\n", ins.opcode);
@@ -2784,7 +2807,8 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				riscv_jal (code, RISCV_ZERO, 0);
 				break;
 			case OP_RISCV_EXC_BNE:
-			case OP_RISCV_EXC_BEQ:{
+			case OP_RISCV_EXC_BEQ:
+			case OP_RISCV_EXC_BLTU:{
 				code = mono_riscv_emit_branch_exc (cfg, code, *ins, (const char*)ins->inst_p1);
 				break;
 			}
