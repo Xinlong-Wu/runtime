@@ -1485,6 +1485,7 @@ loop_start:
 			case OP_ICONST:
 			case OP_MOVE:
 			case OP_ISUB:
+			case OP_IADD:
 			case OP_LADD:
 			case OP_CHECK_THIS:
 			case OP_XOR_IMM:
@@ -1627,25 +1628,7 @@ loop_start:
 					ins->inst_imm = 0;
 				}
 				break;
-			case OP_SUB_IMM:
-			case OP_ISUB_IMM:
-				ins->inst_imm = -ins->inst_imm;
-				ins->opcode = OP_ADD_IMM;
-				goto loop_start;
-			// Inst ADDI use I-type Imm
-			case OP_ADD_IMM:
-			case OP_IADD_IMM:
-			case OP_LADD_IMM:
-				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_imm))){
-					NEW_INS (cfg, ins, temp, OP_ICONST);
-					temp->inst_c0 = ins->inst_imm;
-					temp->dreg = mono_alloc_ireg (cfg);
-					ins->sreg2 = temp->dreg;
-					ins->inst_imm = 0;
-					// there is no OP_ADD opcode, use OP_LADD instead
-					ins->opcode = OP_LADD;
-				}
-				break;
+
 			case OP_COMPARE_IMM:
 			case OP_ICOMPARE_IMM:
 			case OP_LCOMPARE_IMM:{
@@ -1786,6 +1769,38 @@ loop_start:
 				}
 				break;
 			}
+
+			/* Math */
+			case OP_SUB_IMM:
+			case OP_ISUB_IMM:
+				ins->inst_imm = -ins->inst_imm;
+				ins->opcode = OP_ADD_IMM;
+				goto loop_start;
+			// Inst ADDI use I-type Imm
+			case OP_ADD_IMM:
+			case OP_IADD_IMM:
+			case OP_LADD_IMM:
+				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_imm))){
+					NEW_INS (cfg, ins, temp, OP_ICONST);
+					temp->inst_c0 = ins->inst_imm;
+					temp->dreg = mono_alloc_ireg (cfg);
+					ins->sreg2 = temp->dreg;
+					ins->inst_imm = 0;
+					// there is no OP_ADD opcode, use OP_IADD instead
+					ins->opcode = OP_IADD;
+				}
+				break;
+			case OP_MUL_IMM:{
+				g_assert(riscv_stdext_m);
+				NEW_INS (cfg, ins, temp, OP_ICONST);
+				temp->inst_c0 = ins->inst_imm;
+				temp->dreg = mono_alloc_ireg (cfg);
+				ins->sreg2 = temp->dreg;
+				ins->inst_imm = 0;
+				ins->opcode = OP_IMUL;
+				break;
+			}
+
 
 			// Bit OP
 			case OP_AND_IMM:
@@ -2690,6 +2705,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_I8CONST:
 				code = mono_riscv_emit_imm(code, ins->dreg, ins->inst_c0);
 				break;
+			case OP_IADD:
 			case OP_LADD:
 				riscv_add(code, ins->dreg, ins->sreg1, ins->sreg2);
 				break;
@@ -2700,6 +2716,10 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				break;
 			case OP_ISUB:
 				riscv_sub(code, ins->dreg, ins->sreg1, ins->sreg2);
+				break;
+			case OP_IMUL:
+				g_assert(riscv_stdext_m);
+				riscv_mul(code, ins->dreg, ins->sreg1, ins->sreg2);
 				break;
 
 			/* Bit/logic */

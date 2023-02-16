@@ -76,11 +76,13 @@ move: dest:i src1:i len:4
 
 iconst: dest:i len:16
 i8const: dest:i len:16
+int_add: dest:i src1:i src2:i len:4
+long_add: dest:i src1:i src2:i len:4
+int_sub: dest:i src1:i src2:i len:4
+int_mul: dest:i src1:i src2:i len:4
 add_imm: dest:i src1:i len:4
 int_add_imm: dest:i src1:i len:4
 long_add_imm: dest:i src1:i len:4
-long_add: dest:i src1:i src2:i len:4
-int_sub: dest:i src1:i len:4
 
 and_imm: dest:i src1:i len:4
 xor_imm: dest:i src1:i len:4
