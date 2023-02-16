@@ -1242,6 +1242,7 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_LADD_IMM:
 		case OP_IADD_IMM:
 		case OP_LAND_IMM:
+		case OP_ISUB:
 		case OP_ISUB_IMM:
 		case OP_LOR:
 		case OP_ICONV_TO_I:
@@ -1483,6 +1484,7 @@ loop_start:
 			case OP_I8CONST:
 			case OP_ICONST:
 			case OP_MOVE:
+			case OP_ISUB:
 			case OP_LADD:
 			case OP_CHECK_THIS:
 			case OP_XOR_IMM:
@@ -1624,8 +1626,10 @@ loop_start:
 				}
 				break;
 			case OP_SUB_IMM:
+			case OP_ISUB_IMM:
 				ins->inst_imm = -ins->inst_imm;
 				ins->opcode = OP_ADD_IMM;
+				goto loop_start;
 			// Inst ADDI use I-type Imm
 			case OP_ADD_IMM:
 			case OP_IADD_IMM:
@@ -2675,6 +2679,9 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_IADD_IMM:
 			case OP_LADD_IMM:
 				riscv_addi(code, ins->dreg, ins->sreg1, ins->inst_imm);
+				break;
+			case OP_ISUB:
+				riscv_sub(code, ins->dreg, ins->sreg1, ins->sreg2);
 				break;
 
 			/* Bit/logic */
