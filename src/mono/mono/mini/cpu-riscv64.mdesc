@@ -69,6 +69,8 @@ loadi8_membase: dest:i src1:b len:16
 
 memory_barrier: len:4 clob:a
 atomic_store_i4: dest:b src1:i len:8
+atomic_cas_i4: dest:i src1:i src2:i src3:i len:24
+atomic_cas_i8: dest:i src1:i src2:i src3:i len:24
 
 move: dest:i src1:i len:4
 

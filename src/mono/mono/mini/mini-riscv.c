@@ -1530,6 +1530,8 @@ loop_start:
 			/* Atomic Ext */
 			case OP_MEMORY_BARRIER:
 			case OP_ATOMIC_STORE_I4:
+			case OP_ATOMIC_CAS_I4:
+			case OP_ATOMIC_CAS_I8:
 				break;
 
 			case OP_CALL_MEMBASE:
@@ -2592,7 +2594,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			}
 			case OP_LOCALLOC:{
 				g_assert(MONO_ARCH_FRAME_ALIGNMENT == 16);
-				guint8 *branch_lable;
+				guint8 *branch_label;
 				guint8 *loop_start;
 				// ins->sreg1 stores the size of new object.
 				// 1. Align the object size to MONO_ARCH_FRAME_ALIGNMENT
@@ -2611,7 +2613,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				riscv_addi(code, RISCV_T0, RISCV_SP, 0);
 				loop_start = code;
 				riscv_beq(code, RISCV_T0, RISCV_T1, 0);
-				branch_lable = code;
+				branch_label = code;
 				code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, 0, 0);
 				code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, sizeof(host_mgreg_t), 0), 0;
 #ifdef TARGET_RISCV32
@@ -2620,7 +2622,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 #endif
 				riscv_addi(code, RISCV_T0, RISCV_T0, MONO_ARCH_FRAME_ALIGNMENT);
 				riscv_jal(code, RISCV_ZERO, riscv_get_jal_disp(code, loop_start));
-				riscv_patch_rel(branch_lable, code, MONO_R_RISCV_BEQ);
+				riscv_patch_rel(branch_label, code, MONO_R_RISCV_BEQ);
 
 				riscv_addi(code, ins->dreg, RISCV_SP, 0);
 				if (cfg->param_area){
@@ -2761,6 +2763,49 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				code = mono_riscv_emit_store (code, ins->sreg1, ins->inst_destbasereg, ins->inst_offset, 4);
 				if (ins->backend.memory_barrier_kind == MONO_MEMORY_BARRIER_SEQ)
 					NOT_IMPLEMENTED;
+				break;
+			}
+			case OP_ATOMIC_CAS_I4:{
+				g_assert(riscv_stdext_a);
+				/**
+				 * loop_start:
+				 * 	lr.w	t0, rs1
+				 * 	bne		t0, rs3, loop_end
+				 * 	sc.w.rl t1, rs2, rs1
+				 * 	bnez t1, loop_start
+				 * loop_end:
+				 * 	fence rw, rw
+				 * 	mv rd, t0
+				 * 
+				*/
+				guint8 *loop_start, *branch_label;
+				/* sreg2 is the value, sreg3 is the comparand */
+				loop_start = code;
+				riscv_lr_w(code, RISCV_ORDER_NONE, RISCV_T0, ins->sreg1);
+				branch_label = code;
+				riscv_bne(code, RISCV_T0, ins->sreg3, 0);
+				riscv_sc_w(code, RISCV_ORDER_RL, RISCV_T1, ins->sreg2, ins->sreg1);
+				riscv_bne(code, RISCV_ZERO, RISCV_T1, loop_start - code);
+				riscv_patch_rel(branch_label, code, MONO_R_RISCV_BNE);
+				
+				riscv_fence(code, RISCV_FENCE_MEM, RISCV_FENCE_MEM);
+				riscv_addi(code, ins->dreg, RISCV_T0, 0);
+				break;
+			}
+			case OP_ATOMIC_CAS_I8:{
+				g_assert(riscv_stdext_a);
+				guint8 *loop_start, *branch_label;
+				/* sreg2 is the value, sreg3 is the comparand */
+				loop_start = code;
+				riscv_lr_d(code, RISCV_ORDER_NONE, RISCV_T0, ins->sreg1);
+				branch_label = code;
+				riscv_bne(code, RISCV_T0, ins->sreg3, 0);
+				riscv_sc_d(code, RISCV_ORDER_RL, RISCV_T1, ins->sreg2, ins->sreg1);
+				riscv_bne(code, RISCV_ZERO, RISCV_T1, loop_start - code);
+				riscv_patch_rel(branch_label, code, MONO_R_RISCV_BNE);
+				
+				riscv_fence(code, RISCV_FENCE_MEM, RISCV_FENCE_MEM);
+				riscv_addi(code, ins->dreg, RISCV_T0, 0);
 				break;
 			}
 
