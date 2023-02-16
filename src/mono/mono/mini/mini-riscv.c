@@ -2471,10 +2471,7 @@ mono_arch_emit_epilog (MonoCompile *cfg)
 	/* Destroy frame */
 	code = mono_riscv_emit_destroy_frame(code, cfg->stack_offset);
 
-	if(cinfo->ret.storage == ArgNone || cinfo->ret.storage == ArgInIReg)
-		riscv_jalr(code, RISCV_X0, RISCV_RA, 0);
-	else
-		g_assert_not_reached();
+	riscv_jalr(code, RISCV_X0, RISCV_RA, 0);
 	MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 
 	g_assert (code - (cfg->native_code + cfg->code_len) < max_epilog_size);
