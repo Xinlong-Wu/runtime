@@ -1383,6 +1383,8 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 				ins->opcode = OP_REGOFFSET;
 				ins->inst_basereg = cfg->frame_reg;
 				/* These arguments are saved to the stack in the prolog */
+				if(ainfo->is_regpair)
+					offset += sizeof (host_mgreg_t);
 				offset += sizeof (host_mgreg_t);
 				ins->inst_offset = -offset;
 				break;
