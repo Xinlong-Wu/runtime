@@ -1259,6 +1259,7 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_LADD_IMM:
 		case OP_IADD_IMM:
 		case OP_LAND_IMM:
+		case OP_LOR:
 		case OP_ICONV_TO_I:
 		case OP_ICONV_TO_U:
 		case OP_ICONV_TO_I1:
@@ -1499,6 +1500,8 @@ loop_start:
 			case OP_LADD:
 			case OP_CHECK_THIS:
 			case OP_XOR_IMM:
+			case OP_LOR:
+			case OP_LOR_IMM:
 			case OP_SHL_IMM:
 			case OP_LSHL_IMM:
 			case OP_SHR_IMM:
@@ -2684,9 +2687,13 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				riscv_andi(code, ins->dreg, ins->sreg1, ins->inst_imm);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
 				break;
+			case OP_LOR_IMM:
 			case OP_XOR_IMM:
 				riscv_xori(code, ins->dreg, ins->sreg1, ins->inst_imm);
 				MONO_ARCH_DUMP_CODE_DEBUG(code, cfg->verbose_level > 2);
+				break;
+			case OP_LOR:
+				riscv_xor(code, ins->dreg, ins->sreg1, ins->sreg2);
 				break;
 			case OP_RISCV_SLT:
 				riscv_slt(code, ins->dreg, ins->sreg1, ins->sreg2);

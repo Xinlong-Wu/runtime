@@ -79,14 +79,16 @@ int_add_imm: dest:i src1:i len:4
 long_add_imm: dest:i src1:i len:4
 long_add: dest:i src1:i src2:i len:4
 
-int_and: dest:i src1:i src2:i len:4
 and_imm: dest:i src1:i len:4
-long_and_imm: dest:i src1:i len:4
 xor_imm: dest:i src1:i len:4
 shl_imm: dest:i src1:i len:4
-long_shl_imm: dest:i src1:i len:4
 shr_imm: dest:i src1:i len:4
 shr_un_imm: dest:i src1:i len:4
+int_and: dest:i src1:i src2:i len:4
+long_and_imm: dest:i src1:i len:4
+long_or: dest:i src1:i src2:i len:4
+long_or_imm: dest:i src1:i len:4
+long_shl_imm: dest:i src1:i len:4
 
 riscv_beq: src1:i src2:i len:4
 riscv_bne: src1:i src2:i len:4
