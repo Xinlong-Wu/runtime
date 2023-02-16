@@ -1751,6 +1751,12 @@ loop_start:
 						ins->next->sreg2 = ins->sreg2;
 						NULLIFY_INS (ins);
 					}
+					else if(ins->next->opcode == OP_LCEQ || ins->next->opcode == OP_ICEQ){
+						ins->next->opcode = OP_RISCV_SLTIU;
+						ins->next->sreg1 = ins->sreg1;
+						ins->next->sreg2 = ins->sreg2;
+						NULLIFY_INS (ins);
+					}
 					else {
 						g_print("Unhandaled op %d following after OP_{I|L}COMPARE{|_IMM}\n",ins->next->opcode);
 						NOT_IMPLEMENTED;
@@ -1763,6 +1769,7 @@ loop_start:
 			}
 
 			// Bit OP
+			case OP_AND_IMM:
 			case OP_LAND_IMM:
 				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_imm))){
 					NEW_INS (cfg, ins, temp, OP_ICONST);
