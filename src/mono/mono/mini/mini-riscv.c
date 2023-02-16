@@ -2853,7 +2853,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			}
 			case OP_CALL_HANDLER:
 				mono_add_patch_info_rel (cfg, offset, MONO_PATCH_INFO_BB, ins->inst_target_bb, MONO_R_RISCV_JAL);
-				riscv_jal (code, RISCV_ZERO, 0);
+				riscv_jal (code, RISCV_RA, 0);
 				cfg->thunk_area += THUNK_SIZE;
 				for (GList *tmp = ins->inst_eh_blocks; tmp != bb->clause_holes; tmp = tmp->prev)
 					mono_cfg_add_try_hole (cfg, ((MonoLeaveClause *) tmp->data)->clause, code, bb);
