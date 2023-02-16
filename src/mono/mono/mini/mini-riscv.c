@@ -1508,8 +1508,10 @@ loop_start:
 			case OP_RISCV_BGE:
 			case OP_RISCV_EXC_BEQ:
 			case OP_RISCV_EXC_BNE:
+			case OP_RISCV_EXC_BGEU:
 			case OP_RISCV_EXC_BLTU:
 			case OP_RISCV_SLT:
+			case OP_RISCV_SLTU:
 			case OP_RISCV_SLTIU:
 				break;
 			
@@ -1703,6 +1705,7 @@ loop_start:
 				ins->opcode = OP_ICOMPARE;
 				goto loop_start;
 			}
+			case OP_COMPARE:
 			case OP_ICOMPARE:
 			case OP_LCOMPARE:{
 				if (ins->next){
@@ -1722,6 +1725,12 @@ loop_start:
 						ins->next->opcode = OP_RISCV_EXC_BLTU;
 						ins->next->sreg1 = ins->sreg1;
 						ins->next->sreg2 = ins->sreg2;
+						NULLIFY_INS (ins);
+					}
+					else if(ins->next->opcode == OP_COND_EXC_LE_UN){
+						ins->next->opcode = OP_RISCV_EXC_BGEU;
+						ins->next->sreg1 = ins->sreg2;
+						ins->next->sreg2 = ins->sreg1;
 						NULLIFY_INS (ins);
 					}
 					else if(ins->next->opcode == OP_LBEQ || ins->next->opcode == OP_IBEQ){
@@ -1751,6 +1760,12 @@ loop_start:
 					}
 					else if(ins->next->opcode == OP_LCLT || ins->next->opcode == OP_ICLT){
 						ins->next->opcode = OP_RISCV_SLT;
+						ins->next->sreg1 = ins->sreg1;
+						ins->next->sreg2 = ins->sreg2;
+						NULLIFY_INS (ins);
+					}
+					else if(ins->next->opcode == OP_LCLT_UN || ins->next->opcode == OP_ICLT_UN){
+						ins->next->opcode = OP_RISCV_SLTU;
 						ins->next->sreg1 = ins->sreg1;
 						ins->next->sreg2 = ins->sreg2;
 						NULLIFY_INS (ins);
@@ -2055,20 +2070,20 @@ mono_riscv_emit_call (MonoCompile *cfg, guint8* code, MonoJumpInfoType patch_typ
 /* This clobbers RA */
 static guint8 *
 mono_riscv_emit_branch_exc (MonoCompile *cfg, guint8 *code, const MonoInst ins, const char *exc_name){
-	// guint8 *p;
+	guint8 *p;
 
-	// riscv_auipc(code, RISCV_T0, 0);
-	// // load imm
-	// riscv_jal (code, RISCV_T1, sizeof (guint64) + 4);
-	// p = code;
-	// code += sizeof (guint64);
-	// riscv_ld (code, RISCV_T1, RISCV_T1, 0);
-	// // pc + imm
-	// riscv_add(code, RISCV_T0, RISCV_T0, RISCV_T1);
+	riscv_auipc(code, RISCV_T0, 0);
+	// load imm
+	riscv_jal (code, RISCV_T1, sizeof (guint64) + 4);
+	p = code;
+	code += sizeof (guint64);
+	riscv_ld (code, RISCV_T1, RISCV_T1, 0);
+	// pc + imm
+	riscv_add(code, RISCV_T0, RISCV_T0, RISCV_T1);
 
-	// *(guint64 *)p = (gsize)code;
-	// mono_add_patch_info_rel (cfg, code - cfg->native_code, MONO_PATCH_INFO_EXC, exc_name, MONO_R_RISCV_BEQ);
-	
+	*(guint64 *)p = (gsize)code;
+
+	mono_add_patch_info_rel (cfg, code - cfg->native_code, MONO_PATCH_INFO_EXC, exc_name, MONO_R_RISCV_BEQ);
 	switch(ins.opcode){
 		case OP_RISCV_EXC_BEQ:
 			riscv_beq(code, ins.sreg1, ins.sreg2, 0);
@@ -2078,6 +2093,9 @@ mono_riscv_emit_branch_exc (MonoCompile *cfg, guint8 *code, const MonoInst ins, 
 			break;
 		case OP_RISCV_EXC_BLTU:
 			riscv_bltu(code, ins.sreg1, ins.sreg2, 0);
+			break;
+		case OP_RISCV_EXC_BGEU:
+			riscv_bgeu(code, ins.sreg1, ins.sreg2, 0);
 			break;
 		default:
 			g_print("can't emit exc branch %d\n", ins.opcode);
@@ -2702,6 +2720,9 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_RISCV_SLT:
 				riscv_slt(code, ins->dreg, ins->sreg1, ins->sreg2);
 				break;
+			case OP_RISCV_SLTU:
+				riscv_sltu(code, ins->dreg, ins->sreg1, ins->sreg2);
+				break;
 			case OP_RISCV_SLTI:
 				riscv_slti(code, ins->dreg, ins->sreg1, ins->inst_imm);
 				break;
@@ -2822,6 +2843,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				break;
 			case OP_RISCV_EXC_BNE:
 			case OP_RISCV_EXC_BEQ:
+			case OP_RISCV_EXC_BGEU:
 			case OP_RISCV_EXC_BLTU:{
 				code = mono_riscv_emit_branch_exc (cfg, code, *ins, (const char*)ins->inst_p1);
 				break;
