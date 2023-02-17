@@ -805,6 +805,8 @@ mono_arch_opcode_needs_emulation (MonoCompile *cfg, int opcode)
 	case OP_IDIV_UN:
 	case OP_IREM:
 	case OP_IREM_UN:
+	case OP_IMUL:
+	case OP_MUL_IMM:
 #ifdef TARGET_RISCV64
 	case OP_LMUL_IMM:
 	case OP_LDIV:
@@ -1257,6 +1259,9 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 #endif
 		case OP_LCONV_TO_I:
 		case OP_LMUL_IMM:
+
+		case OP_LADD_OVF_UN:
+		case OP_LMUL_OVF_UN_OOM:
 			break;
 		default:
 			g_print("Can't decompose the OP %s\n",mono_inst_name (ins->opcode));
