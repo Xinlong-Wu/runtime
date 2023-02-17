@@ -103,6 +103,7 @@ long_shl_imm: dest:i src1:i len:4
 riscv_beq: src1:i src2:i len:4
 riscv_bne: src1:i src2:i len:4
 riscv_bge: src1:i src2:i len:4
+riscv_bgeu: src1:i src2:i len:4
 riscv_blt: src1:i src2:i len:4
 riscv_bltu: src1:i src2:i len:4
 riscv_exc_beq: src1:i src2:i len:28

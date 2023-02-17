@@ -1513,6 +1513,7 @@ loop_start:
 			case OP_RISCV_BEQ:
 			case OP_RISCV_BNE:
 			case OP_RISCV_BGE:
+			case OP_RISCV_BGEU:
 			case OP_RISCV_BLT:
 			case OP_RISCV_BLTU:
 			case OP_RISCV_EXC_BEQ:
@@ -1748,6 +1749,12 @@ loop_start:
 						NULLIFY_INS (ins);
 					}
 					else if(ins->next->opcode == OP_LBGE_UN || ins->next->opcode == OP_IBGE_UN){
+						ins->next->opcode = OP_RISCV_BGEU;
+						ins->next->sreg1 = ins->sreg1;
+						ins->next->sreg2 = ins->sreg2;
+						NULLIFY_INS (ins);
+					}
+					else if(ins->next->opcode == OP_LBGE || ins->next->opcode == OP_IBGE){
 						ins->next->opcode = OP_RISCV_BGE;
 						ins->next->sreg1 = ins->sreg1;
 						ins->next->sreg2 = ins->sreg2;
@@ -1791,7 +1798,7 @@ loop_start:
 						NULLIFY_INS (ins);
 					}
 					else if(ins->next->opcode == OP_LCGT_UN || ins->next->opcode == OP_ICGT_UN){
-						ins->next->opcode = OP_RISCV_SLT;
+						ins->next->opcode = OP_RISCV_SLTU;
 						ins->next->sreg1 = ins->sreg2;
 						ins->next->sreg2 = ins->sreg1;
 						NULLIFY_INS (ins);
@@ -2940,6 +2947,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				code = emit_move_return_value(cfg, code, ins);
 				break;
 			case OP_CALL_MEMBASE:
+			case OP_VCALL2_MEMBASE:
 			case OP_VOIDCALL_MEMBASE:
 				riscv_jalr(code, RISCV_RA, ins->inst_basereg, ins->inst_offset);
 				code = emit_move_return_value(cfg, code, ins);
@@ -2957,6 +2965,10 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_RISCV_BGE:
 				mono_add_patch_info_rel (cfg, (code - cfg->native_code), MONO_PATCH_INFO_BB, ins->inst_true_bb, MONO_R_RISCV_BGE);
 				riscv_bge(code, ins->sreg1, ins->sreg2, 0);
+				break;
+			case OP_RISCV_BGEU:
+				mono_add_patch_info_rel (cfg, (code - cfg->native_code), MONO_PATCH_INFO_BB, ins->inst_true_bb, MONO_R_RISCV_BGE);
+				riscv_bgeu(code, ins->sreg1, ins->sreg2, 0);
 				break;
 			case OP_RISCV_BLT:
 				mono_add_patch_info_rel (cfg, (code - cfg->native_code), MONO_PATCH_INFO_BB, ins->inst_true_bb, MONO_R_RISCV_BGE);
