@@ -1456,7 +1456,7 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 void
 mono_arch_lowering_pass (MonoCompile *cfg, MonoBasicBlock *bb)
 {
-	MonoInst *ins,*n, *temp;
+	MonoInst *ins, *last_ins,*n, *temp;
 	if (cfg->verbose_level > 2) {
 		// int idx = 0;
 
@@ -1870,7 +1870,11 @@ loop_start:
 				NOT_IMPLEMENTED;
 				break;
 		}
+		last_ins = ins;
 	}
+
+	bb->last_ins = last_ins;
+	bb->max_vreg = cfg->next_vreg;
 
 	if (cfg->verbose_level > 2) {
 		// int idx = 0;
