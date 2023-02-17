@@ -689,9 +689,16 @@ get_call_info(MonoMemPool *mp, MonoMethodSignature *sig){
 	return cinfo;
 }
 
+static int
+arg_need_temp (ArgInfo *ainfo)
+{
+	if (ainfo->storage == ArgVtypeInMixed)
+		return sizeof(host_mgreg_t) *2;
+	return 0;
+}
+
 static gpointer
 arg_get_storage (CallContext *ccontext, ArgInfo *ainfo){
-	NOT_IMPLEMENTED;
 	switch (ainfo->storage) {
 		case ArgInIReg:
 		case ArgVtypeInIReg:
@@ -700,19 +707,26 @@ arg_get_storage (CallContext *ccontext, ArgInfo *ainfo){
 			return &ccontext->fregs [ainfo->reg];
 		case ArgOnStack:
 		case ArgVtypeOnStack:
-		case ArgVtypeInMixed:
 			return ccontext->stack + ainfo->offset;
+		case ArgVtypeByRef:
+			return (gpointer) ccontext->gregs [ainfo->reg];
 		default:
 			g_print("Can't process storage type %d\n", ainfo->storage);
 			NOT_IMPLEMENTED;
 	}
 }
 
+static void
+arg_set_val (CallContext *ccontext, ArgInfo *ainfo, gpointer src)
+{
+	g_assert (arg_need_temp (ainfo));
+	NOT_IMPLEMENTED;
+}
+
 /* Set arguments in the ccontext (for i2n entry) */
 void
 mono_arch_set_native_call_context_args (CallContext *ccontext, gpointer frame, MonoMethodSignature *sig)
 {
-	NOT_IMPLEMENTED;
 	const MonoEECallbacks *interp_cb = mini_get_interp_callbacks ();
 	CallInfo *cinfo = get_call_info (NULL, sig);
 	gpointer storage;
@@ -727,7 +741,8 @@ mono_arch_set_native_call_context_args (CallContext *ccontext, gpointer frame, M
 	if (sig->ret->type != MONO_TYPE_VOID){
 		ainfo = &cinfo->ret;
 		if (ainfo->storage == ArgVtypeByRef) {
-			NOT_IMPLEMENTED;
+			storage = interp_cb->frame_arg_to_storage ((MonoInterpFrameHandle)frame, sig, -1);
+			ccontext->gregs [cinfo->ret.reg] = (gsize)storage;
 		}
 	}
 
@@ -736,12 +751,21 @@ mono_arch_set_native_call_context_args (CallContext *ccontext, gpointer frame, M
 	for (int i = 0; i < sig->param_count; i++){
 		ainfo = &cinfo->args [i];
 
-		if (ainfo->storage == ArgVtypeByRef)
-			NOT_IMPLEMENTED;
+		if (ainfo->storage == ArgVtypeByRef){
+			ccontext->gregs [ainfo->reg] = (host_mgreg_t)interp_cb->frame_arg_to_storage ((MonoInterpFrameHandle)frame, sig, i);
+			continue;
+		}
 
-		storage = arg_get_storage (ccontext, ainfo);
+		int temp_size = arg_need_temp (ainfo);
+
+		if (temp_size)
+			storage = alloca (temp_size); // FIXME? alloca in a loop
+		else
+			storage = arg_get_storage (ccontext, ainfo);
 
 		interp_cb->frame_arg_to_data ((MonoInterpFrameHandle)frame, sig, i, storage);
+		if (temp_size)
+			arg_set_val (ccontext, ainfo, storage);
 	}
 
 	g_free (cinfo);
