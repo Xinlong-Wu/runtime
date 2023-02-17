@@ -129,6 +129,7 @@ extern gboolean riscv_stdext_a, riscv_stdext_b, riscv_stdext_c,
 #define MONO_ARCH_EMULATE_LCONV_TO_R8       (1)
 #define MONO_ARCH_EMULATE_LCONV_TO_R4       (1)
 #define MONO_ARCH_EMULATE_LCONV_TO_R8_UN    (1)
+#define MONO_ARCH_EMULATE_LONG_MUL_OVF_OPTS  (1)
 
 #define MONO_ARCH_NEED_DIV_CHECK (1)
 
