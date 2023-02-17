@@ -989,7 +989,7 @@ mono_arch_create_vars (MonoCompile *cfg)
 		cfg->arch.bp_tramp_var = ins;
 	}
 
-	if (cfg->method->save_lmf) {
+	if (0) {
 		cfg->lmf_ir = TRUE;
 		cfg->create_lmf_var = TRUE;
 	}
@@ -1346,7 +1346,7 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 	cfg->frame_reg = RISCV_FP;
 	offset += sizeof (host_mgreg_t) * 2;
 
-	if (cfg->method->save_lmf) {
+	if (0) {
 		/* Save all callee-saved registers normally, and restore them when unwinding through an LMF */
 		cfg->arch.saved_iregs |= MONO_ARCH_CALLEE_SAVED_REGS;
 	}
@@ -1527,6 +1527,7 @@ loop_start:
 			case OP_CALL_HANDLER:
 			case OP_ENDFINALLY:
 			case OP_GET_EX_OBJ:
+			case OP_GENERIC_CLASS_INIT:
 			case OP_I8CONST:
 			case OP_ICONST:
 			case OP_MOVE:
@@ -2553,7 +2554,7 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 		riscv_addi(code, RISCV_SP, RISCV_SP, -cfg->param_area);
 
 
-	if (cfg->method->save_lmf){
+	if (0){
 		g_assert(cfg->lmf_var->inst_offset <= 0);
 		code = emit_setup_lmf (cfg, code, cfg->lmf_var->inst_offset, cfa_offset);
 	}
@@ -2609,7 +2610,7 @@ mono_arch_emit_epilog (MonoCompile *cfg)
 
 	code = realloc_code (cfg, max_epilog_size);
 
-	if (cfg->method->save_lmf) {
+	if (0) {
 		// same as emit_load_stack()
 		g_assert(cfg->lmf_var->inst_offset <= 0);
 		int basereg = RISCV_FP;
@@ -2806,6 +2807,25 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 					g_assert(cfg->param_area > 0);
 					riscv_addi(code, RISCV_SP, RISCV_SP, -cfg->param_area);
 				}
+				break;
+			}
+			case OP_GENERIC_CLASS_INIT:{
+				int byte_offset;
+				guint8 *branch_label;
+
+				byte_offset = MONO_STRUCT_OFFSET (MonoVTable, initialized);
+				
+				/* Load vtable->initialized */
+				code = mono_riscv_emit_load(code, RISCV_T0, ins->sreg1, byte_offset, 1);
+				branch_label = code;
+				riscv_bne(code, RISCV_ZERO, RISCV_T0, 0);
+
+				/* Slowpath */
+				g_assert (ins->sreg1 == RISCV_A0);
+				code = mono_riscv_emit_call (cfg, code, MONO_PATCH_INFO_JIT_ICALL_ID,
+								  GUINT_TO_POINTER (MONO_JIT_ICALL_mono_generic_class_init));
+
+				mono_riscv_patch (branch_label, code, MONO_R_RISCV_BNE);
 				break;
 			}
 
