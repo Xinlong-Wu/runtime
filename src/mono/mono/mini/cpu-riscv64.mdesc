@@ -42,6 +42,8 @@ call_handler: len:4 clob:c
 endfinally: len:32
 localloc: dest:i src1:i len:48
 localloc_imm: dest:i len:48
+generic_class_init: src1:a len:4 clob:c
+
 throw: src1:i len:4
 rethrow: src1:i len:4
 
