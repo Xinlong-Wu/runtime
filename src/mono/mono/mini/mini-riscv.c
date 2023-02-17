@@ -1480,6 +1480,7 @@ loop_start:
 			case OP_GC_SAFE_POINT:
 			case OP_BR:
 			case OP_CALL:
+			case OP_LCALL:
 			case OP_VCALL2:
 			case OP_VOIDCALL:
 			case OP_START_HANDLER:
@@ -1826,6 +1827,39 @@ loop_start:
 					ins->opcode = OP_IADD;
 				}
 				break;
+			case OP_ADDCC:{
+				/**
+				 * add t0, t1, t2
+				 * slti t3, t2, 0
+				 * slt t4,t0,t1
+				 * bne t3, t4, overflow
+				*/
+				ins->opcode = OP_IADD;
+				MonoInst *branch_ins = ins->next;
+				if(branch_ins){
+					if(branch_ins->opcode == OP_COND_EXC_C){
+						// bne t3, t4, overflow
+						branch_ins->opcode = OP_RISCV_EXC_BNE;
+						branch_ins->sreg1 = mono_alloc_ireg (cfg);
+						branch_ins->sreg2 = mono_alloc_ireg (cfg);
+
+						// slti t3, t2, 0
+						NEW_INS (cfg, branch_ins, temp, OP_RISCV_SLTI);
+						temp->dreg = branch_ins->sreg1;
+						temp->sreg1 = ins->sreg2;
+						temp->inst_imm = 0;
+
+						// slt t4,t0,t1
+						NEW_INS (cfg, branch_ins, temp, OP_RISCV_SLT);
+						temp->dreg = branch_ins->sreg2;
+						temp->sreg1 = ins->dreg;
+						temp->sreg2 = ins->sreg1;
+					}
+					else
+						g_assert_not_reached();
+				}
+				break;
+			}
 			case OP_MUL_IMM:{
 				g_assert(riscv_stdext_m);
 				NEW_INS (cfg, ins, temp, OP_ICONST);
@@ -2890,8 +2924,9 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			}
 
 			/* Calls */
-			case OP_CALL:
 			case OP_VOIDCALL:
+			case OP_CALL:
+			case OP_LCALL:
 			case OP_VCALL2: {
 				call = (MonoCallInst*)ins;
 				const MonoJumpInfoTarget patch = mono_call_to_patch (call);
