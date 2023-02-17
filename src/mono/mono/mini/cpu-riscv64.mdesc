@@ -52,6 +52,7 @@ voidcall: len:4 clob:c
 voidcall_reg: src1:i len:4 clob:c
 voidcall_membase: src1:b len:4 clob:c
 vcall2: len:16 clob:c
+vcall2_membase: src1:b len:4 clob:c
 
 # Note: in RV32, it shoule be 
 # lcall: dest:l ...
