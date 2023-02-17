@@ -351,9 +351,6 @@ emit_thunk (guint8 *code, gconstpointer target)
 	code = mono_riscv_emit_imm(code, RISCV_T0, (gsize)target);
 	riscv_jalr (code, RISCV_ZERO, RISCV_T0,0);
 
-	// TODO: figure out whether thunk need return and deicde delet or not
-	riscv_jalr (code, RISCV_ZERO, RISCV_RA, 0);
-
 	mono_arch_flush_icache (p, code - p);
 	g_print("end of thunk at 0x%x\n",code);
 	return code;
