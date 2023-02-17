@@ -1544,6 +1544,7 @@ loop_start:
 			}
 
 			case OP_CALL_MEMBASE:
+			case OP_VCALL2_MEMBASE:
 			case OP_VOIDCALL_MEMBASE:
 				if(!RISCV_VALID_J_IMM(ins->inst_offset)){
 					NOT_IMPLEMENTED;
