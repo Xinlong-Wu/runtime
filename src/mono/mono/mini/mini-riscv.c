@@ -802,7 +802,15 @@ mono_arch_get_native_call_context_ret (CallContext *ccontext, gpointer frame, Mo
 	ainfo = &cinfo->ret;
 
 	if (ainfo->storage != ArgVtypeByRef){
-		storage = arg_get_storage (ccontext, ainfo);
+		int temp_size = arg_need_temp (ainfo);
+
+		if (temp_size) {
+			storage = alloca (temp_size);
+			arg_get_val (ccontext, ainfo, storage);
+		}
+		else{
+			storage = arg_get_storage (ccontext, ainfo);
+		}
 		interp_cb->data_to_frame_arg ((MonoInterpFrameHandle)frame, sig, -1, storage);
 	}
 
