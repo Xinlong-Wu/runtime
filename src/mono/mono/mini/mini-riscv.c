@@ -3007,7 +3007,8 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_CALL_MEMBASE:
 			case OP_VCALL2_MEMBASE:
 			case OP_VOIDCALL_MEMBASE:
-				riscv_jalr(code, RISCV_RA, ins->inst_basereg, ins->inst_offset);
+				code = mono_riscv_emit_load(code, RISCV_T0, ins->inst_basereg, ins->inst_offset, 0);
+				riscv_jalr(code, RISCV_RA, RISCV_T0, 0);
 				code = emit_move_return_value(cfg, code, ins);
 				break;
 
