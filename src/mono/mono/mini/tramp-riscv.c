@@ -372,41 +372,105 @@ gpointer
 mono_arch_create_rgctx_lazy_fetch_trampoline (guint32 slot, MonoTrampInfo **info,
                                               gboolean aot)
 {
-	if (aot)
-		NOT_IMPLEMENTED;
+	guint8 *code, *buf;
+	int buf_size;
+	int i, depth, index, njumps;
+	gboolean is_mrgctx;
+	guint8 **rgctx_null_jumps;
+	MonoJumpInfo *ji = NULL;
+	GSList *unwind_ops = NULL;
+	guint8 *tramp;
+	guint32 code_len;
 
-	gboolean is_mrgctx = MONO_RGCTX_SLOT_IS_MRGCTX (slot);
-	int index = MONO_RGCTX_SLOT_INDEX (slot);
-
+	is_mrgctx = MONO_RGCTX_SLOT_IS_MRGCTX (slot);
+	index = MONO_RGCTX_SLOT_INDEX (slot);
 	if (is_mrgctx)
 		index += MONO_SIZEOF_METHOD_RUNTIME_GENERIC_CONTEXT / sizeof (target_mgreg_t);
-
-	int depth;
-
-	for (depth = 0; ; depth++) {
+	for (depth = 0; ; ++depth){
 		int size = mono_class_rgctx_get_array_size (depth, is_mrgctx);
 
 		if (index < size - 1)
 			break;
-
 		index -= size - 1;
 	}
 
-	guint8 *buf = mono_global_codeman_reserve (128 * depth), *code = buf;
+	buf_size = 64 + 16 * depth;
+	code = buf = mono_global_codeman_reserve (buf_size);
 
-	if (!is_mrgctx) {
-	} else
-		riscv_addi (code, RISCV_T1, RISCV_A0, 0);
+	rgctx_null_jumps = g_malloc0 (sizeof (guint8*) * (depth + 2));
+	njumps = 0;
 
-	mono_arch_flush_icache (buf, code - buf);
+	/* The vtable/mrgtx is in R0 */
+	g_assert (MONO_ARCH_VTABLE_REG == RISCV_A0);
+
+	MINI_BEGIN_CODEGEN ();
+
+	if (is_mrgctx) {
+		/* get mrgctx ptr */
+		riscv_addi (code, RISCV_T0, RISCV_A0, 0);
+	}
+	else{
+		/* load rgctx ptr from vtable */
+		code = mono_riscv_emit_load(code, RISCV_T0, RISCV_A0, MONO_STRUCT_OFFSET (MonoVTable, runtime_generic_context), 0);
+		/* is the rgctx ptr null? */
+		/* if yes, jump to actual trampoline */
+		rgctx_null_jumps [njumps ++] = code;
+		riscv_beq (code, RISCV_ZERO, RISCV_T0, 0);
+	}
+
+	for (i = 0; i < depth; ++i) {
+		/* load ptr to next array */
+		if (is_mrgctx && i == 0) {
+			code = mono_riscv_emit_load(code, RISCV_T0, RISCV_T0, MONO_SIZEOF_METHOD_RUNTIME_GENERIC_CONTEXT, 0);
+		}
+		else{
+			code = mono_riscv_emit_load(code, RISCV_T0, RISCV_T0, 0, 0);
+		}
+		/* is the ptr null? */
+		/* if yes, jump to actual trampoline */
+		rgctx_null_jumps [njumps ++] = code;
+		riscv_beq (code, RISCV_ZERO, RISCV_T0, 0);
+	}
+
+	/* fetch slot */
+	code = mono_riscv_emit_load(code, RISCV_T0, RISCV_T0, sizeof (target_mgreg_t) * (index + 1), 0);
+	/* is the slot null? */
+	/* if yes, jump to actual trampoline */
+	rgctx_null_jumps [njumps ++] = code;
+	riscv_beq (code, RISCV_ZERO, RISCV_T0, 0);
+	/* otherwise return, result is in RISCV_T0 */
+	riscv_addi(code, RISCV_A0, RISCV_T0, 0);
+	riscv_jalr(code, RISCV_ZERO, RISCV_RA, 0);
+
+	g_assert (njumps <= depth + 2);
+	for (i = 0; i < njumps; ++i)
+		mono_riscv_patch(rgctx_null_jumps [i], code, MONO_R_RISCV_BEQ);
+
+	g_free (rgctx_null_jumps);
+
+	/* Slowpath */
+	/* Call mono_rgctx_lazy_fetch_trampoline (), passing in the slot as argument */
+	/* The vtable/mrgctx is still in A0 */
+	if (aot)
+		NOT_IMPLEMENTED;
+	else{
+		MonoMemoryManager *mem_manager = mini_get_default_mem_manager ();
+		tramp = (guint8*)mono_arch_create_specific_trampoline (GUINT_TO_POINTER (slot), MONO_TRAMPOLINE_RGCTX_LAZY_FETCH, mem_manager, &code_len);
+		code = mono_riscv_emit_imm(code, RISCV_T0, (guint64)tramp);
+	}
+	riscv_jalr(code, RISCV_ZERO, RISCV_T0, 0);
+
+	g_assert (code - buf <= buf_size);
+
+	MINI_END_CODEGEN (buf, code - buf, MONO_PROFILER_CODE_BUFFER_GENERICS_TRAMPOLINE, NULL);
 
 	if (info) {
 		char *name = mono_get_rgctx_fetch_trampoline_name (slot);
-		*info = mono_tramp_info_create (name, buf, code - buf, NULL, NULL);
+		*info = mono_tramp_info_create (name, buf, code - buf, ji, unwind_ops);
 		g_free (name);
 	}
 
-	return buf;
+	return (gpointer)MINI_ADDR_TO_FTNPTR (buf);
 }
 
 gpointer
