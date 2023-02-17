@@ -2218,18 +2218,21 @@ mono_riscv_emit_branch_exc (MonoCompile *cfg, guint8 *code, const MonoInst ins, 
 
 	*(guint64 *)p = (gsize)code;
 
-	mono_add_patch_info_rel (cfg, code - cfg->native_code, MONO_PATCH_INFO_EXC, exc_name, MONO_R_RISCV_BEQ);
 	switch(ins.opcode){
 		case OP_RISCV_EXC_BEQ:
+			mono_add_patch_info_rel (cfg, code - cfg->native_code, MONO_PATCH_INFO_EXC, exc_name, MONO_R_RISCV_BEQ);
 			riscv_beq(code, ins.sreg1, ins.sreg2, 0);
 			break;
 		case OP_RISCV_EXC_BNE:
+			mono_add_patch_info_rel (cfg, code - cfg->native_code, MONO_PATCH_INFO_EXC, exc_name, MONO_R_RISCV_BNE);
 			riscv_bne(code, ins.sreg1, ins.sreg2, 0);
 			break;
 		case OP_RISCV_EXC_BLTU:
+			mono_add_patch_info_rel (cfg, code - cfg->native_code, MONO_PATCH_INFO_EXC, exc_name, MONO_R_RISCV_BLTU);
 			riscv_bltu(code, ins.sreg1, ins.sreg2, 0);
 			break;
 		case OP_RISCV_EXC_BGEU:
+			mono_add_patch_info_rel (cfg, code - cfg->native_code, MONO_PATCH_INFO_EXC, exc_name, MONO_R_RISCV_BGEU);
 			riscv_bgeu(code, ins.sreg1, ins.sreg2, 0);
 			break;
 		default:
