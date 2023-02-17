@@ -723,6 +723,14 @@ arg_set_val (CallContext *ccontext, ArgInfo *ainfo, gpointer src)
 	NOT_IMPLEMENTED;
 }
 
+static void
+arg_get_val (CallContext *ccontext, ArgInfo *ainfo, gpointer dest)
+{
+	g_assert (arg_need_temp (ainfo));
+	NOT_IMPLEMENTED;
+}
+
+
 /* Set arguments in the ccontext (for i2n entry) */
 void
 mono_arch_set_native_call_context_args (CallContext *ccontext, gpointer frame, MonoMethodSignature *sig)
