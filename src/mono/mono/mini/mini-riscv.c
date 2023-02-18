@@ -349,13 +349,11 @@ mono_riscv_emit_destroy_frame (guint8 *code){
 static guint8*
 emit_thunk (guint8 *code, gconstpointer target)
 {
-	g_print("emit thunk at 0x%lx\n",code);
 	guint8 *p = code;
 	code = mono_riscv_emit_imm(code, RISCV_T0, (gsize)target);
 	riscv_jalr (code, RISCV_ZERO, RISCV_T0,0);
 
 	mono_arch_flush_icache (p, code - p);
-	g_print("end of thunk at 0x%x\n",code);
 	return code;
 }
 
