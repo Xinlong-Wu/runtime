@@ -327,18 +327,21 @@ mono_arch_get_argument_info (MonoMethodSignature *csig, int param_count,
 }
 
 /**
+ * [NFC] Because there is OP_LOCALLOC stuff,
+ * the stack size will increase dynamicly,
+ * so the stack size stored in cfg->stack_offset
+ * can't guide us to destroy the frame.
+ * 
  * Emits:
- *   ld ra, stack_offset-8(sp) # 8-byte Folded Reload
- *   ld s0, stack_offset-16(sp) # 8-byte Folded Reload
- * 	 addi sp,sp,stack_size
+ * 	 addi sp,fp, 0
+ *   ld ra, -8(fp) # 8-byte Folded Reload
+ *   ld s0, -16(fp) # 8-byte Folded Reload
 */
 guint8*
-mono_riscv_emit_destroy_frame (guint8 *code, int stack_offset){
-	g_assert("Check stack align\n" && (stack_offset == (stack_offset>>3)<<3));
-
-	code = mono_riscv_emit_load(code, RISCV_RA, RISCV_SP, stack_offset - sizeof(host_mgreg_t), 0);
-	code = mono_riscv_emit_load(code, RISCV_S0, RISCV_SP, stack_offset - sizeof(host_mgreg_t)*2, 0);
-	riscv_addi(code, RISCV_SP, RISCV_SP, stack_offset);
+mono_riscv_emit_destroy_frame (guint8 *code){
+	riscv_addi(code, RISCV_SP, RISCV_FP, 0);
+	code = mono_riscv_emit_load(code, RISCV_RA, RISCV_FP, -sizeof(host_mgreg_t), 0);
+	code = mono_riscv_emit_load(code, RISCV_S0, RISCV_FP, -sizeof(host_mgreg_t)*2, 0);
 
 	return code;
 }
@@ -2668,7 +2671,7 @@ mono_arch_emit_epilog (MonoCompile *cfg)
 	}
 
 	/* Destroy frame */
-	code = mono_riscv_emit_destroy_frame(code, cfg->stack_offset);
+	code = mono_riscv_emit_destroy_frame(code);
 
 	riscv_jalr(code, RISCV_X0, RISCV_RA, 0);
 

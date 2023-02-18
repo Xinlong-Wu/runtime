@@ -261,7 +261,7 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 		riscv_addi(code, RISCV_A0, RISCV_T1, 0);
 
 	/* Cleanup frame */
-	code = mono_riscv_emit_destroy_frame(code, frame_size);
+	code = mono_riscv_emit_destroy_frame(code);
 
 	if (tramp_type == MONO_TRAMPOLINE_RGCTX_LAZY_FETCH){
 		riscv_jalr(code, RISCV_ZERO, RISCV_RA, 0);
@@ -277,7 +277,7 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 	 * We have an exception we want to throw in the caller's frame, so pop
 	 * the trampoline frame and throw from the caller.
 	 */
-	code = mono_riscv_emit_destroy_frame(code, frame_size);
+	code = mono_riscv_emit_destroy_frame(code);
 	/* We are in the parent frame, the exception is in A0 */
 	/*
 	 * EH is initialized after trampolines, so get the address of the variable
@@ -583,7 +583,7 @@ mono_arch_create_sdb_trampoline (gboolean single_step, MonoTrampInfo **info, gbo
 	gregs_regset = ~((1 << RISCV_ZERO) | (1 << RISCV_FP) | (1 << RISCV_SP));
 	code = emit_load_regarray(code, gregs_regset, RISCV_FP, -ctx_gregs_offset, FALSE);
 
-	code = mono_riscv_emit_destroy_frame (code, frame_size);
+	code = mono_riscv_emit_destroy_frame (code);
 
 	riscv_jalr(code, RISCV_ZERO, RISCV_RA, 0);
 

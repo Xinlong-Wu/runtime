@@ -295,7 +295,7 @@ __attribute__ ((warn_unused_result)) guint8 *
 mono_riscv_emit_fstore (guint8 *code, int rd, int rs1, gint32 imm);
 
 __attribute__ ((__warn_unused_result__)) guint8*
-mono_riscv_emit_destroy_frame (guint8 *code, int stack_offset);
+mono_riscv_emit_destroy_frame (guint8 *code);
 
 __attribute__ ((warn_unused_result)) guint8 *
 emit_store_stack (guint8 *code, guint64 regs, int basereg, int offset, MonoBoolean isFloat);
