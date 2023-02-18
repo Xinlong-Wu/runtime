@@ -1829,6 +1829,13 @@ loop_start:
 						ins->next->sreg2 = ins->sreg1;
 						NULLIFY_INS (ins);
 					}
+					else if(ins->next->opcode == OP_LBLE_UN || ins->next->opcode == OP_IBLE_UN){
+						// ble rs1, rs2  -> bge rs2, rs1
+						ins->next->opcode = OP_RISCV_BGEU;
+						ins->next->sreg1 = ins->sreg2;
+						ins->next->sreg2 = ins->sreg1;
+						NULLIFY_INS (ins);
+					}
 					else if(ins->next->opcode == OP_LBLT_UN || ins->next->opcode == OP_IBLT_UN){
 						ins->next->opcode = OP_RISCV_BLTU;
 						ins->next->sreg1 = ins->sreg1;
