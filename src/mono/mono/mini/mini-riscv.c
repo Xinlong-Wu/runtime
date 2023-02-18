@@ -353,6 +353,7 @@ emit_thunk (guint8 *code, gconstpointer target)
 	code = mono_riscv_emit_imm(code, RISCV_T0, (gsize)target);
 	riscv_jalr (code, RISCV_ZERO, RISCV_T0,0);
 
+	g_assert((p - code) < THUNK_SIZE);
 	mono_arch_flush_icache (p, code - p);
 	return code;
 }
@@ -365,6 +366,7 @@ create_thunk (MonoCompile *cfg, guchar *code, const guchar *target){
 	int thunks_size;
 	guint8 *orig_target;
 	guint8 *target_thunk;
+	MonoJitMemoryManager* jit_mm;
 
 	if (cfg) {
 		/*
@@ -393,7 +395,49 @@ create_thunk (MonoCompile *cfg, guchar *code, const guchar *target){
 		return thunks;
 	}
 	else {
-		NOT_IMPLEMENTED;
+		ji = mini_jit_info_table_find (code);
+		g_assert (ji);
+		info = mono_jit_info_get_thunk_info (ji);
+		g_assert (info);
+
+		thunks = (guint8*)ji->code_start + info->thunks_offset;
+		thunks_size = info->thunks_size;
+
+		orig_target = mono_arch_get_call_target (code + 4);
+
+		/* Arbitrary lock */
+		jit_mm = get_default_jit_mm ();
+		target_thunk = NULL;
+		if (orig_target >= thunks && orig_target < thunks + thunks_size){
+			/* The call already points to a thunk, because of trampolines etc. */
+			target_thunk = orig_target;
+		}
+		else {
+			for (p = thunks; p < thunks + thunks_size; p += THUNK_SIZE) {
+				if (((guint32*)p) [0] == 0) {
+					/* Free entry */
+					target_thunk = p;
+					break;
+				} else if (*(guint64*)(p + 4) == (guint64)target) {
+					NOT_IMPLEMENTED;
+					/* Thunk already points to target */
+					target_thunk = p;
+					break;
+				}
+			}
+		}
+
+		if (!target_thunk) {
+			jit_mm_unlock (jit_mm);
+			g_print ("thunk failed %p->%p, thunk space=%d method %s", code, target, thunks_size, cfg ? mono_method_full_name (cfg->method, TRUE) : mono_method_full_name (jinfo_get_method (ji), TRUE));
+			g_assert_not_reached ();
+		}
+
+		emit_thunk (target_thunk, target);
+
+		jit_mm_unlock (jit_mm);
+
+		return target_thunk;
 	}
 }
 
