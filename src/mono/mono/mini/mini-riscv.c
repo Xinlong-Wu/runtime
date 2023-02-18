@@ -415,7 +415,9 @@ riscv_patch_full (MonoCompile *cfg, guint8 *code, guint8 *target, int relocation
 		}
 		case MONO_R_RISCV_BEQ:
 		case MONO_R_RISCV_BNE:
-		case MONO_R_RISCV_BGE:{
+		case MONO_R_RISCV_BGE:
+		case MONO_R_RISCV_BGEU:
+		case MONO_R_RISCV_BLTU:{
 			int offset = target - code;
 			g_assert (RISCV_VALID_B_IMM ((gint32) (gssize) (offset)));
 
@@ -428,6 +430,12 @@ riscv_patch_full (MonoCompile *cfg, guint8 *code, guint8 *target, int relocation
 				riscv_bne (code, rs1, rs2, offset);
 			else if(relocation == MONO_R_RISCV_BGE)
 				riscv_bge (code, rs1, rs2, offset);
+			else if(relocation == MONO_R_RISCV_BGEU)
+				riscv_bgeu (code, rs1, rs2, offset);
+			else if(relocation == MONO_R_RISCV_BLTU)
+				riscv_bltu (code, rs1, rs2, offset);
+			else
+				g_assert_not_reached();
 			break;
 		}
 		default:
@@ -2746,7 +2754,6 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			}
 			case OP_LOCALLOC:{
 				g_assert(MONO_ARCH_FRAME_ALIGNMENT == 16);
-				guint8 *branch_label;
 				guint8 *loop_start;
 				// ins->sreg1 stores the size of new object.
 				// 1. Align the object size to MONO_ARCH_FRAME_ALIGNMENT
@@ -2765,7 +2772,6 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				riscv_addi(code, RISCV_T0, RISCV_SP, 0);
 				loop_start = code;
 				riscv_beq(code, RISCV_T0, RISCV_T1, 0);
-				branch_label = code;
 				code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, 0, 0);
 				code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, sizeof(host_mgreg_t), 0), 0;
 #ifdef TARGET_RISCV32
@@ -2774,7 +2780,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 #endif
 				riscv_addi(code, RISCV_T0, RISCV_T0, MONO_ARCH_FRAME_ALIGNMENT);
 				riscv_jal(code, RISCV_ZERO, riscv_get_jal_disp(code, loop_start));
-				riscv_patch_rel(branch_label, code, MONO_R_RISCV_BEQ);
+				riscv_patch_rel(loop_start, code, MONO_R_RISCV_BEQ);
 
 				riscv_addi(code, ins->dreg, RISCV_SP, 0);
 				if (cfg->param_area){
@@ -2793,11 +2799,11 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				g_assert (MONO_ARCH_FRAME_ALIGNMENT == 16);
 				aligned_imm_offset = 0;
 				while (aligned_imm_offset < aligned_imm){
-					code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, 0, 0);
-					code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, sizeof(host_mgreg_t), 0), 0;
+					code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, aligned_imm_offset + 0, 0);
+					code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, aligned_imm_offset + sizeof(host_mgreg_t), 0), 0;
 #ifdef TARGET_RISCV32
-					code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, sizeof(host_mgreg_t)*2, 0);
-					code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, sizeof(host_mgreg_t)*3, 0);
+					code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, aligned_imm_offset + sizeof(host_mgreg_t)*2, 0);
+					code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, aligned_imm_offset + sizeof(host_mgreg_t)*3, 0);
 #endif
 					aligned_imm_offset += 16;
 				}
