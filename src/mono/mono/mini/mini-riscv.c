@@ -2489,9 +2489,9 @@ emit_move_return_value (MonoCompile *cfg, guint8 * code, MonoInst *ins){
 			/* Load the destination address */
 			g_assert (loc && loc->opcode == OP_REGOFFSET);
 			code = mono_riscv_emit_load (code, RISCV_T0, loc->inst_basereg, loc->inst_offset, 0);
-			code = mono_riscv_emit_load (code, cinfo->ret.reg, RISCV_T0, 0, 0);
+			code = mono_riscv_emit_store (code, cinfo->ret.reg, RISCV_T0, 0, 0);
 			if(cinfo->ret.is_regpair){
-				code = mono_riscv_emit_load (code, cinfo->ret.reg + 1, RISCV_T0, sizeof(host_mgreg_t), 0);
+				code = mono_riscv_emit_store (code, cinfo->ret.reg + 1, RISCV_T0, sizeof(host_mgreg_t), 0);
 			}
 			break;
 		}
