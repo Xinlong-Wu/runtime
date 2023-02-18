@@ -1361,7 +1361,6 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 		// saved_gregs_offset store the addr of firs reg
 		for (guint i = 0; i < 32; ++i)
 			if ((MONO_ARCH_CALLEE_SAVED_REGS & (1 << i)) && (cfg->used_int_regs & (1 << i))){
-				g_print("save callee saved reg %s to %ld(s0/fp).\n", mono_arch_regname (i), -offset);
 				offset += sizeof (host_mgreg_t);
 			}
 		cfg->arch.saved_gregs_offset = offset;
@@ -1482,14 +1481,12 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 			ins->opcode = OP_REGOFFSET;
 			ins->inst_basereg = cfg->frame_reg;
 			ins->inst_offset = -offset + local_stack [i];
-			g_print ("allocated local %d to %ld(s0/fp); ", i, ins->inst_offset); mono_print_ins (ins);
+			// g_print ("allocated local %d to %ld(s0/fp); ", i, ins->inst_offset); mono_print_ins (ins);
 		}
 	}
 	offset = ALIGN_TO (offset, MONO_ARCH_FRAME_ALIGNMENT);
 
 	cfg->stack_offset = offset;
-
-	g_print("Stack size: %ld\n",offset);
 }
 
 #define NEW_INS(cfg,ins,dest,op) do {	\
