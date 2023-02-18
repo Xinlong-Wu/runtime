@@ -3044,15 +3044,15 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				riscv_bge(code, ins->sreg1, ins->sreg2, 0);
 				break;
 			case OP_RISCV_BGEU:
-				mono_add_patch_info_rel (cfg, (code - cfg->native_code), MONO_PATCH_INFO_BB, ins->inst_true_bb, MONO_R_RISCV_BGE);
+				mono_add_patch_info_rel (cfg, (code - cfg->native_code), MONO_PATCH_INFO_BB, ins->inst_true_bb, MONO_R_RISCV_BGEU);
 				riscv_bgeu(code, ins->sreg1, ins->sreg2, 0);
 				break;
 			case OP_RISCV_BLT:
-				mono_add_patch_info_rel (cfg, (code - cfg->native_code), MONO_PATCH_INFO_BB, ins->inst_true_bb, MONO_R_RISCV_BGE);
+				mono_add_patch_info_rel (cfg, (code - cfg->native_code), MONO_PATCH_INFO_BB, ins->inst_true_bb, MONO_R_RISCV_BLT);
 				riscv_blt(code, ins->sreg1, ins->sreg2, 0);
 				break;
 			case OP_RISCV_BLTU:
-				mono_add_patch_info_rel (cfg, (code - cfg->native_code), MONO_PATCH_INFO_BB, ins->inst_true_bb, MONO_R_RISCV_BGE);
+				mono_add_patch_info_rel (cfg, (code - cfg->native_code), MONO_PATCH_INFO_BB, ins->inst_true_bb, MONO_R_RISCV_BLTU);
 				riscv_bltu(code, ins->sreg1, ins->sreg2, 0);
 				break;
 			case OP_BR:
