@@ -2805,11 +2805,11 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				g_assert (MONO_ARCH_FRAME_ALIGNMENT == 16);
 				aligned_imm_offset = 0;
 				while (aligned_imm_offset < aligned_imm){
-					code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, aligned_imm_offset + 0, 0);
-					code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, aligned_imm_offset + sizeof(host_mgreg_t), 0), 0;
+					code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_SP, aligned_imm_offset + 0, 0);
+					code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_SP, aligned_imm_offset + sizeof(host_mgreg_t), 0), 0;
 #ifdef TARGET_RISCV32
-					code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, aligned_imm_offset + sizeof(host_mgreg_t)*2, 0);
-					code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, aligned_imm_offset + sizeof(host_mgreg_t)*3, 0);
+					code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_SP, aligned_imm_offset + sizeof(host_mgreg_t)*2, 0);
+					code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_SP, aligned_imm_offset + sizeof(host_mgreg_t)*3, 0);
 #endif
 					aligned_imm_offset += 16;
 				}
