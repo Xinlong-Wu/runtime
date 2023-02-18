@@ -25,11 +25,23 @@ mono_arch_patch_plt_entry (guint8 *code, gpointer *got, host_mgreg_t *regs, guin
 	NOT_IMPLEMENTED;
 }
 
+/*
+ * mono_arch_get_call_target:
+ *
+ *   Return the address called by the code before CODE if exists.
+ */
 guint8 *
 mono_arch_get_call_target (guint8 *code)
 {
-	NOT_IMPLEMENTED;
-	return NULL;
+	gint32 disp;
+	code -= 4;
+	guint32 ins = *(guint32 *)code;
+	/* Only can be a jal */
+	if ((ins & 0x7f) != 0x6f)
+		return NULL;
+	disp = RISCV_DECODE_J_IMM(ins);
+
+	return code + disp;
 }
 
 guint32
