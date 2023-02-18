@@ -1826,6 +1826,12 @@ loop_start:
 						ins->next->sreg2 = ins->sreg1;
 						NULLIFY_INS (ins);
 					}
+					else if(ins->next->opcode == OP_LBLT_UN || ins->next->opcode == OP_IBLT_UN){
+						ins->next->opcode = OP_RISCV_BLTU;
+						ins->next->sreg1 = ins->sreg1;
+						ins->next->sreg2 = ins->sreg2;
+						NULLIFY_INS (ins);
+					}
 					else if(ins->next->opcode == OP_LCLT || ins->next->opcode == OP_ICLT){
 						ins->next->opcode = OP_RISCV_SLT;
 						ins->next->sreg1 = ins->sreg1;
