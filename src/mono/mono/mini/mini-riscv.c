@@ -1764,15 +1764,16 @@ loop_start:
 			case OP_LCOMPARE_IMM:{
 				if (ins->next){
 					if(ins->next->opcode == OP_LCEQ || ins->next->opcode == OP_ICEQ){
-						g_assert(RISCV_VALID_I_IMM(ins->inst_imm));
-							
-						ins->opcode = OP_ADD_IMM;
-						ins->dreg = mono_alloc_ireg (cfg);
-						ins->inst_imm = -ins->inst_imm;
+						if(RISCV_VALID_I_IMM(ins->inst_imm)){
+							// compare rs1, imm; lceq rd => addi rs2, rs1, -imm; sltiu rd, rs2, 1
+							ins->opcode = OP_ADD_IMM;
+							ins->dreg = mono_alloc_ireg (cfg);
+							ins->inst_imm = -ins->inst_imm;
 
-						ins->next->opcode = OP_RISCV_SLTIU;
-						ins->next->sreg1 = ins->dreg;
-						ins->next->inst_imm = 1;
+							ins->next->opcode = OP_RISCV_SLTIU;
+							ins->next->sreg1 = ins->dreg;
+							ins->next->inst_imm = 1;
+						}
 						break;
 					}
 					else if(ins->next->opcode == OP_LCGT_UN || ins->next->opcode == OP_ICGT_UN){
@@ -1787,20 +1788,7 @@ loop_start:
 							ins->next->dreg = ins->dreg;
 							ins->next->sreg1 = ins->dreg;
 							ins->next->inst_imm = 1;
-						}
-						else{
-							// compare rs1, imm; lcgt_un rd => iconst rs2, imm; sltu rd, rs2, rs1
-							ins->opcode = OP_ICONST;
-							ins->dreg = mono_alloc_ireg (cfg);
-							ins->inst_c0 = ins->inst_imm;
-
-							ins->next->opcode = OP_RISCV_SLTU;
-							ins->next->dreg = ins->next->dreg;
-							ins->next->sreg1 = ins->dreg;
-							ins->next->sreg2 = ins->sreg1;
-
-							ins->sreg1 = -1;
-						}				
+						}			
 						break;
 					}
 					else if(ins->next->opcode == OP_LCGT || ins->next->opcode == OP_ICGT){
@@ -1936,10 +1924,13 @@ loop_start:
 						NULLIFY_INS (ins);
 					}
 					else if(ins->next->opcode == OP_LCEQ || ins->next->opcode == OP_ICEQ){
+						// compare rs1, rs2; lceq rd => xor rs1, rs1, rs2; sltiu rd, rs1, 1
+						ins->opcode = OP_IXOR;
+						ins->dreg = ins->sreg1;
+
 						ins->next->opcode = OP_RISCV_SLTIU;
-						ins->next->sreg1 = ins->sreg1;
-						ins->next->sreg2 = ins->sreg2;
-						NULLIFY_INS (ins);
+						ins->next->sreg1 = ins->dreg;
+						ins->inst_imm = 1;
 					}
 					else if(ins->next->opcode == OP_LCGT_UN || ins->next->opcode == OP_ICGT_UN){
 						ins->next->opcode = OP_RISCV_SLTU;
@@ -3013,6 +3004,9 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_AND_IMM:
 			case OP_LAND_IMM:
 				riscv_andi(code, ins->dreg, ins->sreg1, ins->inst_imm);
+				break;
+			case OP_IXOR:
+				riscv_xor(code, ins->dreg, ins->sreg1, ins->sreg2);
 				break;
 			case OP_XOR_IMM:
 				riscv_xori(code, ins->dreg, ins->sreg1, ins->inst_imm);
