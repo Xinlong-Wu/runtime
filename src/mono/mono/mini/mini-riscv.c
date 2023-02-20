@@ -1831,7 +1831,7 @@ loop_start:
 			case OP_ICOMPARE:
 			case OP_LCOMPARE:{
 				if (ins->next){
-					if(ins->next->opcode == OP_COND_EXC_EQ){
+					if(ins->next->opcode == OP_COND_EXC_EQ || ins->next->opcode == OP_COND_EXC_IEQ){
 						ins->next->opcode = OP_RISCV_EXC_BEQ;
 						ins->next->sreg1 = ins->sreg1;
 						ins->next->sreg2 = ins->sreg2;
