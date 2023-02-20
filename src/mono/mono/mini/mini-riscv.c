@@ -1363,6 +1363,7 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_LSHR_UN_IMM:
 
 		case OP_LMUL_IMM:
+		case OP_IREM:
 		case OP_LREM_UN:
 
 		case OP_LADD_OVF_UN:
@@ -1597,6 +1598,7 @@ loop_start:
 			case OP_LSUB:
 			case OP_IADD:
 			case OP_LADD:
+			case OP_IREM:
 			case OP_LREM_UN:
 			case OP_CHECK_THIS:
 			case OP_XOR_IMM:
@@ -2994,6 +2996,10 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_IMUL:
 				g_assert(riscv_stdext_m);
 				riscv_mul(code, ins->dreg, ins->sreg1, ins->sreg2);
+				break;
+			case OP_IREM:
+				code = mono_riscv_emit_branch_exc(cfg, code, OP_RISCV_EXC_BEQ, ins->sreg2, RISCV_ZERO, "DivideByZeroException");
+				riscv_rem (code, ins->dreg, ins->sreg1, ins->sreg2);
 				break;
 			case OP_LREM_UN:
 				code = mono_riscv_emit_branch_exc(cfg, code, OP_RISCV_EXC_BEQ, ins->sreg2, RISCV_ZERO, "DivideByZeroException");

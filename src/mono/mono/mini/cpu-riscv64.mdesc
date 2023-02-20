@@ -89,6 +89,7 @@ long_add: dest:i src1:i src2:i len:4
 int_sub: dest:i src1:i src2:i len:4
 long_sub: dest:i src1:i src2:i len:4
 int_mul: dest:i src1:i src2:i len:4
+int_rem: dest:i src1:i src2:i len:32
 long_rem_un: dest:i src1:i src2:i len:32
 
 add_imm: dest:i src1:i len:4
@@ -103,6 +104,7 @@ shr_un_imm: dest:i src1:i len:4
 
 int_and: dest:i src1:i src2:i len:4
 int_or: dest:i src1:i src2:i len:4
+int_or_imm: dest:i src1:i len:4
 
 long_and_imm: dest:i src1:i len:4
 long_or: dest:i src1:i src2:i len:4
