@@ -1643,11 +1643,7 @@ loop_start:
 
 			case OP_LOCALLOC_IMM:{
 				if (ins->inst_imm > 32){
-					NEW_INS (cfg, ins, temp, OP_ICONST);
-					temp->inst_c0 = ins->inst_imm;
-					temp->dreg = mono_alloc_ireg (cfg);
-					ins->sreg1 = temp->dreg;
-					ins->opcode = OP_LOCALLOC;
+					mono_decompose_op_imm (cfg, bb, ins);
 				}
 				break;
 			}
@@ -1961,13 +1957,7 @@ loop_start:
 			case OP_IADD_IMM:
 			case OP_LADD_IMM:
 				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_imm))){
-					NEW_INS (cfg, ins, temp, OP_ICONST);
-					temp->inst_c0 = ins->inst_imm;
-					temp->dreg = mono_alloc_ireg (cfg);
-					ins->sreg2 = temp->dreg;
-					ins->inst_imm = 0;
-					// there is no OP_ADD opcode, use OP_IADD instead
-					ins->opcode = OP_IADD;
+					mono_decompose_op_imm (cfg, bb, ins);
 				}
 				break;
 			case OP_ADDCC:{
