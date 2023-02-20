@@ -909,6 +909,7 @@ mono_arch_opcode_needs_emulation (MonoCompile *cfg, int opcode)
 	case OP_LDIV_UN:
 	case OP_LREM:
 	case OP_LREM_UN:
+	case OP_LREM_UN_IMM:
 #endif
 		return !riscv_stdext_m;
 	default:
@@ -1595,6 +1596,7 @@ loop_start:
 			case OP_LSUB:
 			case OP_IADD:
 			case OP_LADD:
+			case OP_LREM_UN:
 			case OP_CHECK_THIS:
 			case OP_XOR_IMM:
 			case OP_LOR:
@@ -2016,6 +2018,9 @@ loop_start:
 				ins->opcode = OP_IMUL;
 				break;
 			}
+			case OP_LREM_UN_IMM:
+				mono_decompose_op_imm (cfg, bb, ins);
+				break;
 
 
 			// Bit OP
@@ -2304,7 +2309,7 @@ mono_riscv_emit_call (MonoCompile *cfg, guint8* code, MonoJumpInfoType patch_typ
 
 /* This clobbers RA */
 static guint8 *
-mono_riscv_emit_branch_exc (MonoCompile *cfg, guint8 *code, const MonoInst ins, const char *exc_name){
+mono_riscv_emit_branch_exc (MonoCompile *cfg, guint8 *code, int opcode, int sreg1, int sreg2, const char *exc_name){
 	guint8 *p;
 
 	riscv_auipc(code, RISCV_T0, 0);
@@ -2318,25 +2323,25 @@ mono_riscv_emit_branch_exc (MonoCompile *cfg, guint8 *code, const MonoInst ins, 
 
 	*(guint64 *)p = (gsize)code;
 
-	switch(ins.opcode){
+	switch(opcode){
 		case OP_RISCV_EXC_BEQ:
 			mono_add_patch_info_rel (cfg, code - cfg->native_code, MONO_PATCH_INFO_EXC, exc_name, MONO_R_RISCV_BEQ);
-			riscv_beq(code, ins.sreg1, ins.sreg2, 0);
+			riscv_beq(code, sreg1, sreg2, 0);
 			break;
 		case OP_RISCV_EXC_BNE:
 			mono_add_patch_info_rel (cfg, code - cfg->native_code, MONO_PATCH_INFO_EXC, exc_name, MONO_R_RISCV_BNE);
-			riscv_bne(code, ins.sreg1, ins.sreg2, 0);
+			riscv_bne(code, sreg1, sreg2, 0);
 			break;
 		case OP_RISCV_EXC_BLTU:
 			mono_add_patch_info_rel (cfg, code - cfg->native_code, MONO_PATCH_INFO_EXC, exc_name, MONO_R_RISCV_BLTU);
-			riscv_bltu(code, ins.sreg1, ins.sreg2, 0);
+			riscv_bltu(code, sreg1, sreg2, 0);
 			break;
 		case OP_RISCV_EXC_BGEU:
 			mono_add_patch_info_rel (cfg, code - cfg->native_code, MONO_PATCH_INFO_EXC, exc_name, MONO_R_RISCV_BGEU);
-			riscv_bgeu(code, ins.sreg1, ins.sreg2, 0);
+			riscv_bgeu(code, sreg1, sreg2, 0);
 			break;
 		default:
-			g_print("can't emit exc branch %d\n", ins.opcode);
+			g_print("can't emit exc branch %d\n", opcode);
 			NOT_IMPLEMENTED;
 	}
 	return code;
@@ -2988,6 +2993,10 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				g_assert(riscv_stdext_m);
 				riscv_mul(code, ins->dreg, ins->sreg1, ins->sreg2);
 				break;
+			case OP_LREM_UN:
+				code = mono_riscv_emit_branch_exc(cfg, code, OP_RISCV_EXC_BEQ, ins->sreg2, RISCV_ZERO, "DivideByZeroException");
+				riscv_remu (code, ins->dreg, ins->sreg1, ins->sreg2);
+				break;
 
 			/* Bit/logic */
 			case OP_IAND:
@@ -3148,7 +3157,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_RISCV_EXC_BEQ:
 			case OP_RISCV_EXC_BGEU:
 			case OP_RISCV_EXC_BLTU:{
-				code = mono_riscv_emit_branch_exc (cfg, code, *ins, (const char*)ins->inst_p1);
+				code = mono_riscv_emit_branch_exc (cfg, code, ins->opcode, ins->sreg1, ins->sreg2, (const char*)ins->inst_p1);
 				break;
 			}
 
