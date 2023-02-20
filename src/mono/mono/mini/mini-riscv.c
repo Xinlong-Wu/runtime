@@ -1342,11 +1342,13 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_LADD:
 		case OP_LADD_IMM:
 		case OP_IADD_IMM:
+		case OP_IADD_OVF:
 		case OP_ISUB:
 		case OP_ISUB_IMM:
 		case OP_LSUB_IMM:
 		case OP_LAND:
 		case OP_LOR:
+		case OP_IXOR:
 		case OP_ICONV_TO_I:
 		case OP_ICONV_TO_U:
 		case OP_ICONV_TO_I1:
@@ -1356,14 +1358,20 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 #ifdef TARGET_RISCV64
 		case OP_ICONV_TO_I4:
 		case OP_ICONV_TO_U4:
+		case OP_ICONV_TO_I8:
+		case OP_LCONV_TO_I4:
+		case OP_LCONV_TO_U4:
 #endif
 		case OP_LCONV_TO_I:
 		case OP_LAND_IMM:
 		case OP_IOR_IMM:
+		case OP_LSHR_IMM:
 		case OP_LSHR_UN_IMM:
 
+		case OP_LMUL:
 		case OP_LMUL_IMM:
 		case OP_IREM:
+		case OP_IREM_UN:
 		case OP_LREM_UN:
 
 		case OP_LADD_OVF_UN:
@@ -1599,9 +1607,11 @@ loop_start:
 			case OP_IADD:
 			case OP_LADD:
 			case OP_IREM:
+			case OP_IREM_UN:
 			case OP_LREM_UN:
 			case OP_CHECK_THIS:
 			case OP_XOR_IMM:
+			case OP_IXOR:
 			case OP_IOR_IMM:
 			case OP_LOR:
 			case OP_LOR_IMM:
@@ -1609,6 +1619,7 @@ loop_start:
 			case OP_LSHL_IMM:
 			case OP_SHR_IMM:
 			case OP_SHR_UN_IMM:
+			case OP_LSHR_IMM:
 			case OP_LSHR_UN_IMM:
 			case OP_LOCALLOC:
 			
@@ -1960,7 +1971,8 @@ loop_start:
 					mono_decompose_op_imm (cfg, bb, ins);
 				}
 				break;
-			case OP_ADDCC:{
+			case OP_ADDCC:
+			case OP_IADDCC:{
 				/**
 				 * add t0, t1, t2
 				 * slti t3, t2, 0
@@ -1970,7 +1982,8 @@ loop_start:
 				ins->opcode = OP_IADD;
 				MonoInst *branch_ins = ins->next;
 				if(branch_ins){
-					if(branch_ins->opcode == OP_COND_EXC_C){
+					if(branch_ins->opcode == OP_COND_EXC_C
+						|| branch_ins->opcode == OP_COND_EXC_IOV ){
 						// bne t3, t4, overflow
 						branch_ins->opcode = OP_RISCV_EXC_BNE;
 						branch_ins->sreg1 = mono_alloc_ireg (cfg);
@@ -1988,8 +2001,10 @@ loop_start:
 						temp->sreg1 = ins->dreg;
 						temp->sreg2 = ins->sreg1;
 					}
-					else
+					else{
+						mono_print_ins(branch_ins);
 						g_assert_not_reached();
+					}
 				}
 				break;
 			}
@@ -2979,6 +2994,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				code = mono_riscv_emit_branch_exc(cfg, code, OP_RISCV_EXC_BEQ, ins->sreg2, RISCV_ZERO, "DivideByZeroException");
 				riscv_rem (code, ins->dreg, ins->sreg1, ins->sreg2);
 				break;
+			case OP_IREM_UN:
 			case OP_LREM_UN:
 				code = mono_riscv_emit_branch_exc(cfg, code, OP_RISCV_EXC_BEQ, ins->sreg2, RISCV_ZERO, "DivideByZeroException");
 				riscv_remu (code, ins->dreg, ins->sreg1, ins->sreg2);
@@ -3024,6 +3040,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				riscv_srli(code, ins->dreg, ins->sreg1, ins->inst_imm);
 				break;
 			case OP_SHR_IMM:
+			case OP_LSHR_IMM:
 				riscv_srai(code, ins->dreg, ins->sreg1, ins->inst_imm);
 				break;
 			case OP_SHL_IMM:
