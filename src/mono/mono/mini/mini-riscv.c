@@ -1939,6 +1939,12 @@ loop_start:
 						ins->next->sreg1 = ins->dreg;
 						ins->inst_imm = 1;
 					}
+					else if(ins->next->opcode == OP_LCGT || ins->next->opcode == OP_ICGT){
+						ins->next->opcode = OP_RISCV_SLT;
+						ins->next->sreg1 = ins->sreg2;
+						ins->next->sreg2 = ins->sreg1;
+						NULLIFY_INS (ins);
+					}
 					else if(ins->next->opcode == OP_LCGT_UN || ins->next->opcode == OP_ICGT_UN){
 						ins->next->opcode = OP_RISCV_SLTU;
 						ins->next->sreg1 = ins->sreg2;
