@@ -1773,8 +1773,8 @@ loop_start:
 							ins->next->opcode = OP_RISCV_SLTIU;
 							ins->next->sreg1 = ins->dreg;
 							ins->next->inst_imm = 1;
+							break;
 						}
-						break;
 					}
 					else if(ins->next->opcode == OP_LCGT_UN || ins->next->opcode == OP_ICGT_UN){
 						if(RISCV_VALID_I_IMM(ins->inst_imm + 1)){
@@ -1788,8 +1788,8 @@ loop_start:
 							ins->next->dreg = ins->dreg;
 							ins->next->sreg1 = ins->dreg;
 							ins->next->inst_imm = 1;
+							break;
 						}			
-						break;
 					}
 					else if(ins->next->opcode == OP_LCGT || ins->next->opcode == OP_ICGT){
 						g_assert(RISCV_VALID_I_IMM(ins->inst_imm + 1));
