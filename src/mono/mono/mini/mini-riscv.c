@@ -464,6 +464,7 @@ riscv_patch_full (MonoCompile *cfg, guint8 *code, guint8 *target, int relocation
 		case MONO_R_RISCV_BEQ:
 		case MONO_R_RISCV_BNE:
 		case MONO_R_RISCV_BGE:
+		case MONO_R_RISCV_BLT:
 		case MONO_R_RISCV_BGEU:
 		case MONO_R_RISCV_BLTU:{
 			int offset = target - code;
@@ -478,6 +479,8 @@ riscv_patch_full (MonoCompile *cfg, guint8 *code, guint8 *target, int relocation
 				riscv_bne (code, rs1, rs2, offset);
 			else if(relocation == MONO_R_RISCV_BGE)
 				riscv_bge (code, rs1, rs2, offset);
+			else if(relocation == MONO_R_RISCV_BLT)
+				riscv_bltu (code, rs1, rs2, offset);
 			else if(relocation == MONO_R_RISCV_BGEU)
 				riscv_bgeu (code, rs1, rs2, offset);
 			else if(relocation == MONO_R_RISCV_BLTU)
@@ -1882,6 +1885,12 @@ loop_start:
 					}
 					else if(ins->next->opcode == OP_LBLT_UN || ins->next->opcode == OP_IBLT_UN){
 						ins->next->opcode = OP_RISCV_BLTU;
+						ins->next->sreg1 = ins->sreg1;
+						ins->next->sreg2 = ins->sreg2;
+						NULLIFY_INS (ins);
+					}
+					else if(ins->next->opcode == OP_LBLT || ins->next->opcode == OP_IBLT){
+						ins->next->opcode = OP_RISCV_BLT;
 						ins->next->sreg1 = ins->sreg1;
 						ins->next->sreg2 = ins->sreg2;
 						NULLIFY_INS (ins);
