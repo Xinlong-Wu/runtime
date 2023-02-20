@@ -977,7 +977,9 @@ mono_arch_get_global_int_regs (MonoCompile *cfg)
 {
 	GList *regs = NULL;
 
-	for (int i = RISCV_S0; i <= RISCV_S11; i++)
+	// RISCV_FP aka RISCV_S0 is reserved
+	regs = g_list_prepend (regs, GUINT_TO_POINTER (RISCV_S1));
+	for (int i = RISCV_S2; i <= RISCV_S11; i++)
 		regs = g_list_prepend (regs, GUINT_TO_POINTER (i));
 
 	return regs;
