@@ -2003,6 +2003,7 @@ loop_start:
 				ins->opcode = OP_IMUL;
 				break;
 			}
+			case OP_IREM_IMM:
 			case OP_LREM_UN_IMM:
 				mono_decompose_op_imm (cfg, bb, ins);
 				break;
