@@ -2020,14 +2020,10 @@ loop_start:
 
 			// Bit OP
 			case OP_AND_IMM:
+			case OP_IAND_IMM:
 			case OP_LAND_IMM:
 				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_imm))){
-					NEW_INS (cfg, ins, temp, OP_ICONST);
-					temp->inst_c0 = ins->inst_imm;
-					temp->dreg = mono_alloc_ireg (cfg);
-					ins->sreg2 = temp->dreg;
-					ins->inst_imm = 0;
-					ins->opcode = OP_IAND;
+					mono_decompose_op_imm (cfg, bb, ins);
 				}
 				break;
 			case OP_ICONV_TO_U1:
@@ -2999,9 +2995,11 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 
 			/* Bit/logic */
 			case OP_IAND:
+			case OP_LAND:
 				riscv_and(code, ins->dreg, ins->sreg1, ins->sreg2);
 				break;
 			case OP_AND_IMM:
+			case OP_IAND_IMM:
 			case OP_LAND_IMM:
 				riscv_andi(code, ins->dreg, ins->sreg1, ins->inst_imm);
 				break;
