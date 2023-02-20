@@ -407,6 +407,9 @@ create_thunk (MonoCompile *cfg, guchar *code, const guchar *target){
 
 		/* Arbitrary lock */
 		jit_mm = get_default_jit_mm ();
+
+		jit_mm_lock (jit_mm);
+
 		target_thunk = NULL;
 		if (orig_target >= thunks && orig_target < thunks + thunks_size){
 			/* The call already points to a thunk, because of trampolines etc. */
