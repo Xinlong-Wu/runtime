@@ -2043,6 +2043,20 @@ loop_start:
 				ins->opcode = OP_AND_IMM;
 				ins->inst_imm = 255;
 				break;
+			case OP_ICONV_TO_U2:
+				// slli    a0, a0, 48
+        		// srai    a0, a0, 48
+				NEW_INS (cfg, ins, temp, OP_ICONST);
+				temp->opcode = OP_SHL_IMM;
+				temp->dreg = ins->dreg;
+				temp->sreg1 = ins->sreg1;
+				temp->inst_imm = 48;
+
+				ins->opcode = OP_SHR_IMM;
+				ins->dreg = ins->dreg;
+				ins->sreg1 = temp->dreg;
+				temp->inst_imm = 48;
+				break;
 #ifdef TARGET_RISCV64:
 			case OP_SEXT_I4:{
 				ins->opcode = OP_RISCV_ADDIW;
