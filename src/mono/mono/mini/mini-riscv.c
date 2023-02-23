@@ -1344,6 +1344,7 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_IADD_IMM:
 		case OP_IADD_OVF:
 		case OP_ISUB:
+		case OP_LSUB:
 		case OP_ISUB_IMM:
 		case OP_LSUB_IMM:
 		case OP_LAND:
@@ -1356,13 +1357,14 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_ICONV_TO_I2:
 		case OP_ICONV_TO_U2:
 #ifdef TARGET_RISCV64
-		case OP_LCONV_TO_U:
-		case OP_LCONV_TO_I:
 		case OP_ICONV_TO_I4:
 		case OP_ICONV_TO_U4:
 		case OP_ICONV_TO_I8:
+		case OP_LCONV_TO_U:
+		case OP_LCONV_TO_I:
 		case OP_LCONV_TO_I4:
 		case OP_LCONV_TO_U4:
+		case OP_LCONV_TO_I8:
 #endif
 		case OP_LAND_IMM:
 		case OP_IOR_IMM:
@@ -1371,6 +1373,7 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 
 		case OP_LMUL:
 		case OP_LMUL_IMM:
+		case OP_LDIV:
 		case OP_IREM:
 		case OP_IREM_UN:
 		case OP_LREM_UN:
