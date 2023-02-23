@@ -109,6 +109,7 @@ int_and_imm: dest:i src1:i len:4
 int_or: dest:i src1:i src2:i len:4
 int_xor: dest:i src1:i src2:i len:4
 int_or_imm: dest:i src1:i len:4
+int_shr_un_imm: dest:i src1:i len:4
 
 long_and: dest:i src1:i src2:i len:4
 long_and_imm: dest:i src1:i len:4
@@ -118,16 +119,16 @@ long_shl_imm: dest:i src1:i len:4
 long_shr_imm: dest:i src1:i len:4
 long_shr_un_imm: dest:i src1:i len:4
 
-riscv_beq: src1:i src2:i len:4
-riscv_bne: src1:i src2:i len:4
-riscv_bge: src1:i src2:i len:4
-riscv_bgeu: src1:i src2:i len:4
-riscv_blt: src1:i src2:i len:4
-riscv_bltu: src1:i src2:i len:4
-riscv_exc_beq: src1:i src2:i len:28
-riscv_exc_bne: src1:i src2:i len:28
-riscv_exc_bgeu: src1:i src2:i len:28
-riscv_exc_bltu: src1:i src2:i len:28
+riscv_beq: src1:i src2:i len:8
+riscv_bne: src1:i src2:i len:8
+riscv_bge: src1:i src2:i len:8
+riscv_bgeu: src1:i src2:i len:8
+riscv_blt: src1:i src2:i len:8
+riscv_bltu: src1:i src2:i len:8
+riscv_exc_beq: src1:i src2:i len:32
+riscv_exc_bne: src1:i src2:i len:32
+riscv_exc_bgeu: src1:i src2:i len:32
+riscv_exc_bltu: src1:i src2:i len:32
 riscv_slt: dest:i src1:i src2:i len:4
 riscv_sltu: dest:i src1:i src2:i len:4
 riscv_slti: dest:i src1:i len:4

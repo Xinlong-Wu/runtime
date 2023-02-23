@@ -277,6 +277,7 @@ enum {
 	MONO_R_RISCV_BGEU = 8,
 
 	MONO_R_RISCV_JAL = 9,
+	MONO_R_RISCV_JALR = 10,
 };
 
 __attribute__ ((warn_unused_result)) guint8 *
