@@ -1360,20 +1360,26 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_ICONV_TO_I4:
 		case OP_ICONV_TO_U4:
 		case OP_ICONV_TO_I8:
+		case OP_ICONV_TO_U8:
 		case OP_LCONV_TO_U:
 		case OP_LCONV_TO_I:
 		case OP_LCONV_TO_I4:
 		case OP_LCONV_TO_U4:
 		case OP_LCONV_TO_I8:
 #endif
+		case OP_IAND_IMM:
 		case OP_LAND_IMM:
+		case OP_IOR:
 		case OP_IOR_IMM:
+		case OP_ISHR_UN_IMM:
 		case OP_LSHR_IMM:
 		case OP_LSHR_UN_IMM:
 
+		case OP_IMUL:
 		case OP_LMUL:
 		case OP_LMUL_IMM:
 		case OP_LDIV:
+		case OP_IDIV_UN:
 		case OP_IREM:
 		case OP_IREM_UN:
 		case OP_LREM_UN:
