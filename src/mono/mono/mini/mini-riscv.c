@@ -468,11 +468,37 @@ riscv_patch_full (MonoCompile *cfg, guint8 *code, guint8 *target, int relocation
 		case MONO_R_RISCV_BGEU:
 		case MONO_R_RISCV_BLTU:{
 			int offset = target - code;
-			g_assert (RISCV_VALID_B_IMM ((gint32) (gssize) (offset)));
 
 			gint32 inst = *(gint32 *) code;
 			gint32 rs1 = RISCV_BITS (inst, 15, 5);
 			gint32 rs2 = RISCV_BITS (inst, 20, 5);
+
+			// if the offset too large to encode as B_IMM
+			// try to use jal to branch
+			if(!RISCV_VALID_B_IMM ((gint32) (gssize) (offset))){
+				if(riscv_is_jal_disp(code, target)){
+					if(relocation == MONO_R_RISCV_BEQ)
+						riscv_bne (code, rs1, rs2, 8);
+					else if(relocation == MONO_R_RISCV_BNE)
+						riscv_beq (code, rs1, rs2, 8);
+					else if(relocation == MONO_R_RISCV_BGE)
+						riscv_blt (code, rs1, rs2, 8);
+					else if(relocation == MONO_R_RISCV_BLT)
+						riscv_bge (code, rs1, rs2, 8);
+					else if(relocation == MONO_R_RISCV_BGEU)
+						riscv_bltu (code, rs1, rs2, 8);
+					else if(relocation == MONO_R_RISCV_BLTU)
+						riscv_bgeu (code, rs1, rs2, 8);
+					else
+						g_assert_not_reached();
+					break;
+
+					riscv_jal(code, RISCV_ZERO, riscv_get_jal_disp(code, target));
+				}
+				else
+					g_assert_not_reached();
+			}
+
 			if(relocation == MONO_R_RISCV_BEQ)
 				riscv_beq (code, rs1, rs2, offset);
 			else if(relocation == MONO_R_RISCV_BNE)
@@ -480,7 +506,7 @@ riscv_patch_full (MonoCompile *cfg, guint8 *code, guint8 *target, int relocation
 			else if(relocation == MONO_R_RISCV_BGE)
 				riscv_bge (code, rs1, rs2, offset);
 			else if(relocation == MONO_R_RISCV_BLT)
-				riscv_bltu (code, rs1, rs2, offset);
+				riscv_blt (code, rs1, rs2, offset);
 			else if(relocation == MONO_R_RISCV_BGEU)
 				riscv_bgeu (code, rs1, rs2, offset);
 			else if(relocation == MONO_R_RISCV_BLTU)
@@ -489,6 +515,9 @@ riscv_patch_full (MonoCompile *cfg, guint8 *code, guint8 *target, int relocation
 				g_assert_not_reached();
 			break;
 		}
+		case MONO_R_RISCV_JALR:
+			*(guint64 *) code = (guint64)target;
+			break;
 		default:
 			NOT_IMPLEMENTED;
 	}
@@ -1624,6 +1653,7 @@ loop_start:
 			case OP_IAND:
 			case OP_XOR_IMM:
 			case OP_IXOR:
+			case OP_IOR:
 			case OP_IOR_IMM:
 			case OP_LOR:
 			case OP_LOR_IMM:
@@ -1631,6 +1661,7 @@ loop_start:
 			case OP_LSHL_IMM:
 			case OP_SHR_IMM:
 			case OP_SHR_UN_IMM:
+			case OP_ISHR_UN_IMM:
 			case OP_LSHR_IMM:
 			case OP_LSHR_UN_IMM:
 			case OP_LOCALLOC:
@@ -2351,40 +2382,43 @@ mono_riscv_emit_call (MonoCompile *cfg, guint8* code, MonoJumpInfoType patch_typ
 /* This clobbers RA */
 static guint8 *
 mono_riscv_emit_branch_exc (MonoCompile *cfg, guint8 *code, int opcode, int sreg1, int sreg2, const char *exc_name){
-	guint8 *p;
+	// guint8 *p;
 
-	riscv_auipc(code, RISCV_T0, 0);
-	// load imm
-	riscv_jal (code, RISCV_T1, sizeof (guint64) + 4);
-	p = code;
-	code += sizeof (guint64);
-	riscv_ld (code, RISCV_T1, RISCV_T1, 0);
-	// pc + imm
-	riscv_add(code, RISCV_T0, RISCV_T0, RISCV_T1);
+	// riscv_auipc(code, RISCV_T0, 0);
+	// // load imm
+	// riscv_jal (code, RISCV_T1, sizeof (guint64) + 4);
+	// p = code;
+	// code += sizeof (guint64);
+	// riscv_ld (code, RISCV_T1, RISCV_T1, 0);
+	// // pc + imm
+	// riscv_add(code, RISCV_T0, RISCV_T0, RISCV_T1);
 
-	*(guint64 *)p = (gsize)code;
+	// *(guint64 *)p = (gsize)code;
 
 	switch(opcode){
 		case OP_RISCV_EXC_BEQ:
-			mono_add_patch_info_rel (cfg, code - cfg->native_code, MONO_PATCH_INFO_EXC, exc_name, MONO_R_RISCV_BEQ);
-			riscv_beq(code, sreg1, sreg2, 0);
+			riscv_bne(code, sreg1, sreg2, 16 + sizeof (guint64));
 			break;
 		case OP_RISCV_EXC_BNE:
-			mono_add_patch_info_rel (cfg, code - cfg->native_code, MONO_PATCH_INFO_EXC, exc_name, MONO_R_RISCV_BNE);
-			riscv_bne(code, sreg1, sreg2, 0);
+			riscv_beq(code, sreg1, sreg2, 16 + sizeof (guint64));
 			break;
 		case OP_RISCV_EXC_BLTU:
-			mono_add_patch_info_rel (cfg, code - cfg->native_code, MONO_PATCH_INFO_EXC, exc_name, MONO_R_RISCV_BLTU);
-			riscv_bltu(code, sreg1, sreg2, 0);
+			riscv_bgeu(code, sreg1, sreg2, 16 + sizeof (guint64));
 			break;
 		case OP_RISCV_EXC_BGEU:
-			mono_add_patch_info_rel (cfg, code - cfg->native_code, MONO_PATCH_INFO_EXC, exc_name, MONO_R_RISCV_BGEU);
-			riscv_bgeu(code, sreg1, sreg2, 0);
+			riscv_bltu(code, sreg1, sreg2, 16 + sizeof (guint64));
 			break;
 		default:
 			g_print("can't emit exc branch %d\n", opcode);
 			NOT_IMPLEMENTED;
 	}
+	riscv_jal(code, RISCV_T6, sizeof (guint64) + 4);
+
+	mono_add_patch_info_rel (cfg, code - cfg->native_code, MONO_PATCH_INFO_EXC, exc_name, MONO_R_RISCV_JALR);
+	code += sizeof (guint64);
+
+	code = mono_riscv_emit_load(code, RISCV_T6, RISCV_T6, 0, 0);
+	riscv_jalr(code, RISCV_ZERO, RISCV_T6, 0);
 	return code;
 }
 
@@ -3067,6 +3101,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_XOR_IMM:
 				riscv_xori(code, ins->dreg, ins->sreg1, ins->inst_imm);
 				break;
+			case OP_IOR:
 			case OP_LOR:
 				riscv_or(code, ins->dreg, ins->sreg1, ins->sreg2);
 				break;
@@ -3087,6 +3122,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				riscv_sltiu(code, ins->dreg, ins->sreg1, ins->inst_imm);
 				break;
 			case OP_SHR_UN_IMM:
+			case OP_ISHR_UN_IMM:
 			case OP_LSHR_UN_IMM:
 				riscv_srli(code, ins->dreg, ins->sreg1, ins->inst_imm);
 				break;
@@ -3187,29 +3223,37 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				break;
 
 			/* Branch */
+			// incase of target is far from the brunch inst
+			// reverse a nop inst for patch use
 			case OP_RISCV_BNE:
 				mono_add_patch_info_rel (cfg, (code - cfg->native_code), MONO_PATCH_INFO_BB, ins->inst_true_bb, MONO_R_RISCV_BNE);
 				riscv_bne(code, ins->sreg1, ins->sreg2, 0);
+				code = mono_riscv_emit_nop(code);
 				break;
 			case OP_RISCV_BEQ:
 				mono_add_patch_info_rel (cfg, (code - cfg->native_code), MONO_PATCH_INFO_BB, ins->inst_true_bb, MONO_R_RISCV_BEQ);
 				riscv_beq(code, ins->sreg1, ins->sreg2, 0);
+				code = mono_riscv_emit_nop(code);
 				break;
 			case OP_RISCV_BGE:
 				mono_add_patch_info_rel (cfg, (code - cfg->native_code), MONO_PATCH_INFO_BB, ins->inst_true_bb, MONO_R_RISCV_BGE);
 				riscv_bge(code, ins->sreg1, ins->sreg2, 0);
+				code = mono_riscv_emit_nop(code);
 				break;
 			case OP_RISCV_BGEU:
 				mono_add_patch_info_rel (cfg, (code - cfg->native_code), MONO_PATCH_INFO_BB, ins->inst_true_bb, MONO_R_RISCV_BGEU);
 				riscv_bgeu(code, ins->sreg1, ins->sreg2, 0);
+				code = mono_riscv_emit_nop(code);
 				break;
 			case OP_RISCV_BLT:
 				mono_add_patch_info_rel (cfg, (code - cfg->native_code), MONO_PATCH_INFO_BB, ins->inst_true_bb, MONO_R_RISCV_BLT);
 				riscv_blt(code, ins->sreg1, ins->sreg2, 0);
+				code = mono_riscv_emit_nop(code);
 				break;
 			case OP_RISCV_BLTU:
 				mono_add_patch_info_rel (cfg, (code - cfg->native_code), MONO_PATCH_INFO_BB, ins->inst_true_bb, MONO_R_RISCV_BLTU);
 				riscv_bltu(code, ins->sreg1, ins->sreg2, 0);
+				code = mono_riscv_emit_nop(code);
 				break;
 			case OP_BR:
 				mono_add_patch_info_rel (cfg, offset, MONO_PATCH_INFO_BB, ins->inst_target_bb, MONO_R_RISCV_JAL);
