@@ -1610,10 +1610,12 @@ loop_start:
 			case OP_LSUB:
 			case OP_IADD:
 			case OP_LADD:
+			case OP_LDIV:
 			case OP_IREM:
 			case OP_IREM_UN:
 			case OP_LREM_UN:
 			case OP_CHECK_THIS:
+			case OP_IAND:
 			case OP_XOR_IMM:
 			case OP_IXOR:
 			case OP_IOR_IMM:
@@ -3014,12 +3016,19 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				g_assert(riscv_stdext_m);
 				riscv_mul(code, ins->dreg, ins->sreg1, ins->sreg2);
 				break;
+			case OP_LDIV:
+				g_assert(riscv_stdext_m);
+				code = mono_riscv_emit_branch_exc(cfg, code, OP_RISCV_EXC_BEQ, ins->sreg2, RISCV_ZERO, "DivideByZeroException");
+				riscv_div(code, ins->dreg, ins->sreg1, ins->sreg2);
+				break;
 			case OP_IREM:
+				g_assert(riscv_stdext_m);
 				code = mono_riscv_emit_branch_exc(cfg, code, OP_RISCV_EXC_BEQ, ins->sreg2, RISCV_ZERO, "DivideByZeroException");
 				riscv_rem (code, ins->dreg, ins->sreg1, ins->sreg2);
 				break;
 			case OP_IREM_UN:
 			case OP_LREM_UN:
+				g_assert(riscv_stdext_m);
 				code = mono_riscv_emit_branch_exc(cfg, code, OP_RISCV_EXC_BEQ, ins->sreg2, RISCV_ZERO, "DivideByZeroException");
 				riscv_remu (code, ins->dreg, ins->sreg1, ins->sreg2);
 				break;
