@@ -1963,6 +1963,18 @@ loop_start:
 						ins->next->sreg2 = ins->sreg1;
 						NULLIFY_INS (ins);
 					}
+					else if(ins->next->opcode == OP_IL_SEQ_POINT){
+						/**
+						 * there is compare without branch OP followed
+						 * 
+						 *  icompare_imm R226
+						 *  il_seq_point il: 0xc6
+						 * 
+						 * what should I do?
+						*/
+						NULLIFY_INS (ins);
+						break;
+					}
 					else {
 						g_print("Unhandaled op %d following after OP_{I|L}COMPARE{|_IMM}\n",ins->next->opcode);
 						NOT_IMPLEMENTED;
