@@ -1370,6 +1370,7 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 	switch (ins->opcode) {
 		case OP_LADD:
 		case OP_LADD_IMM:
+		case OP_IADD:
 		case OP_IADD_IMM:
 		case OP_IADD_OVF:
 		case OP_ISUB:
@@ -1395,11 +1396,13 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_LCONV_TO_I4:
 		case OP_LCONV_TO_U4:
 		case OP_LCONV_TO_I8:
+		case OP_LCONV_TO_U8:
 #endif
 		case OP_IAND_IMM:
 		case OP_LAND_IMM:
 		case OP_IOR:
 		case OP_IOR_IMM:
+		case OP_ISHL_IMM:
 		case OP_ISHR_UN_IMM:
 		case OP_LSHR_IMM:
 		case OP_LSHR_UN_IMM:
@@ -1662,6 +1665,7 @@ loop_start:
 			case OP_SHR_IMM:
 			case OP_SHR_UN_IMM:
 			case OP_ISHR_UN_IMM:
+			case OP_ISHL_IMM:
 			case OP_LSHR_IMM:
 			case OP_LSHR_UN_IMM:
 			case OP_LOCALLOC:
@@ -3131,6 +3135,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				riscv_srai(code, ins->dreg, ins->sreg1, ins->inst_imm);
 				break;
 			case OP_SHL_IMM:
+			case OP_ISHL_IMM:
 			case OP_LSHL_IMM:
 				riscv_slli(code, ins->dreg, ins->sreg1, ins->inst_imm);
 				break;
