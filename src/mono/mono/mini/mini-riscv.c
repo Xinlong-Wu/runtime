@@ -2619,9 +2619,13 @@ emit_move_args (MonoCompile *cfg, guint8 *code){
 					}
 					break;
 				case ArgVtypeInIReg:
-					code = mono_riscv_emit_store(code, ainfo->reg, ins->inst_basereg, ins->inst_offset, 0);
-					if(ainfo->is_regpair)
-						code = mono_riscv_emit_store(code, ainfo->reg + 1, ins->inst_basereg, ins->inst_offset + sizeof(host_mgreg_t), 0);
+					if(ainfo->is_regpair){
+						code = mono_riscv_emit_store(code, ainfo->reg, ins->inst_basereg, ins->inst_offset + sizeof(host_mgreg_t), 0);
+						code = mono_riscv_emit_store(code, ainfo->reg + 1, ins->inst_basereg, ins->inst_offset, 0);
+					}
+					else{
+						code = mono_riscv_emit_store(code, ainfo->reg, ins->inst_basereg, ins->inst_offset, 0);
+					}
 					break;
 				default:
 					g_print("can't process Storage type %d\n",ainfo->storage);
