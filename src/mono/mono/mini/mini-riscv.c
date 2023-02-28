@@ -1393,6 +1393,7 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_ICONV_TO_U8:
 		case OP_LCONV_TO_U:
 		case OP_LCONV_TO_I:
+		case OP_LCONV_TO_U1:
 		case OP_LCONV_TO_I4:
 		case OP_LCONV_TO_U4:
 		case OP_LCONV_TO_I8:
@@ -1984,7 +1985,7 @@ loop_start:
 
 						ins->next->opcode = OP_RISCV_SLTIU;
 						ins->next->sreg1 = ins->dreg;
-						ins->inst_imm = 1;
+						ins->next->inst_imm = 1;
 					}
 					else if(ins->next->opcode == OP_LCGT || ins->next->opcode == OP_ICGT){
 						ins->next->opcode = OP_RISCV_SLT;
@@ -2098,6 +2099,7 @@ loop_start:
 				}
 				break;
 			case OP_ICONV_TO_U1:
+			case OP_LCONV_TO_U1:
 				// andi rd, rs1, 255
 				ins->opcode = OP_AND_IMM;
 				ins->inst_imm = 255;
@@ -2120,6 +2122,7 @@ loop_start:
 			case OP_SEXT_I4:{
 				ins->opcode = OP_RISCV_ADDIW;
 				ins->inst_imm = 0;
+				break;
 			}
 			case OP_ZEXT_I4:{
 				// TODO: Add inst riscv_adduw in riscv-codegen.h
