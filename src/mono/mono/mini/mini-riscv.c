@@ -147,6 +147,133 @@ mono_arch_cpu_optimizations (guint32 *exclude_mask)
 	return 0;
 }
 
+// Reference to mini-arm64, should be the namber of Parameter Regs
+#define MAX_ARCH_DELEGATE_PARAMS 7
+
+static gpointer
+get_delegate_invoke_impl (gboolean has_target, gboolean param_count, guint32 *code_size){
+	guint8 *code, *start;
+
+	MINI_BEGIN_CODEGEN ();
+
+	if (has_target) {
+		start = code = mono_global_codeman_reserve (4*3);
+		code = mono_riscv_emit_load (code, RISCV_T0, RISCV_A0, MONO_STRUCT_OFFSET (MonoDelegate, method_ptr),0);
+		code = mono_riscv_emit_load (code, RISCV_A0, RISCV_A0, MONO_STRUCT_OFFSET (MonoDelegate, target),0);
+		riscv_jalr (code, RISCV_ZERO, RISCV_T0, 0);
+
+		g_assert ((code - start) <= 4*3);
+	}
+	else{
+		int size, i;
+
+		size = 8 + param_count * 4;
+		start = code = mono_global_codeman_reserve (size);
+
+		code = mono_riscv_emit_load (code, RISCV_T0, RISCV_A0, MONO_STRUCT_OFFSET (MonoDelegate, method_ptr),0);
+		/* slide down the arguments */
+		for (i = 0; i < param_count; ++i)
+			riscv_addi (code, RISCV_A0 + i, RISCV_A0 + i + 1, 0);
+		
+		riscv_jalr (code, RISCV_ZERO, RISCV_T0, 0);
+		g_assert ((code - start) <= size);
+	}
+
+	MINI_END_CODEGEN (start, code - start, MONO_PROFILER_CODE_BUFFER_DELEGATE_INVOKE, NULL);
+
+	if (code_size)
+		*code_size = code - start;
+
+	return MINI_ADDR_TO_FTNPTR (start);
+}
+
+/*
+ * mono_arch_get_delegate_invoke_impls:
+ *
+ *   Return a list of MonoAotTrampInfo structures for the delegate invoke impl
+ * trampolines.
+ */
+GSList *
+mono_arch_get_delegate_invoke_impls (void)
+{
+	GSList *res = NULL;
+	guint8 *code;
+	guint32 code_len;
+	int i;
+	char *tramp_name;
+
+	code = (guint8*)get_delegate_invoke_impl (TRUE, 0, &code_len);
+	res = g_slist_prepend (res, mono_tramp_info_create ("delegate_invoke_impl_has_target", code, code_len, NULL, NULL));
+
+	for (i = 0; i <= MAX_ARCH_DELEGATE_PARAMS; ++i) {
+		code = (guint8*)get_delegate_invoke_impl (FALSE, i, &code_len);
+		tramp_name = g_strdup_printf ("delegate_invoke_impl_target_%d", i);
+		res = g_slist_prepend (res, mono_tramp_info_create (tramp_name, code, code_len, NULL, NULL));
+		g_free (tramp_name);
+	}
+
+	return res;
+}
+
+gpointer
+mono_arch_get_delegate_invoke_impl (MonoMethodSignature *sig, gboolean has_target)
+{
+	guint8 *code, *start;
+	/*
+	 * vtypes are returned in registers, so
+	 * they can be supported by delegate invokes.
+	 */
+
+	if (has_target) {
+		static guint8* cached = NULL;
+
+		if (cached)
+			return cached;
+
+		if (mono_ee_features.use_aot_trampolines)
+			NOT_IMPLEMENTED;
+		else
+			start = (guint8*)get_delegate_invoke_impl (TRUE, 0, NULL);
+		mono_memory_barrier ();
+		cached = start;
+		return cached;
+	}
+	else{
+		static guint8* cache [MAX_ARCH_DELEGATE_PARAMS + 1] = {NULL};
+		int i;
+
+		if (sig->param_count > MAX_ARCH_DELEGATE_PARAMS)
+			NOT_IMPLEMENTED;
+		for (i = 0; i < sig->param_count; ++i)
+			if (!mono_is_regsize_var (sig->params [i]))
+				NOT_IMPLEMENTED;
+
+		code = cache [sig->param_count];
+		if (code)
+			return code;
+		if (mono_ee_features.use_aot_trampolines) {
+			NOT_IMPLEMENTED;
+		}
+		else {
+			start = (guint8*)get_delegate_invoke_impl (FALSE, sig->param_count, NULL);
+		}
+		mono_memory_barrier ();
+		cache [sig->param_count] = start;
+		return start;
+	}
+
+	return NULL;
+}
+
+gpointer
+mono_arch_get_delegate_virtual_invoke_impl (MonoMethodSignature *sig,
+                                            MonoMethod *method, int offset,
+                                            gboolean load_imt_reg)
+{
+	NOT_IMPLEMENTED;
+	return NULL;
+}
+
 gboolean
 mono_arch_have_fast_tls (void)
 {

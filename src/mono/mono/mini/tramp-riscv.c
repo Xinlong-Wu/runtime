@@ -51,29 +51,6 @@ mono_arch_get_plt_info_offset (guint8 *plt_entry, host_mgreg_t *regs, guint8 *co
 	return 0;
 }
 
-GSList *
-mono_arch_get_delegate_invoke_impls (void)
-{
-	NOT_IMPLEMENTED;
-	return NULL;
-}
-
-gpointer
-mono_arch_get_delegate_invoke_impl (MonoMethodSignature *sig, gboolean has_target)
-{
-	NOT_IMPLEMENTED;
-	return NULL;
-}
-
-gpointer
-mono_arch_get_delegate_virtual_invoke_impl (MonoMethodSignature *sig,
-                                            MonoMethod *method, int offset,
-                                            gboolean load_imt_reg)
-{
-	NOT_IMPLEMENTED;
-	return NULL;
-}
-
 #ifndef DISABLE_JIT
 
 /*
