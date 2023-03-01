@@ -549,7 +549,6 @@ create_thunk (MonoCompile *cfg, guchar *code, const guchar *target){
 					target_thunk = p;
 					break;
 				} else if (*(guint64*)(p + 4) == (guint64)target) {
-					NOT_IMPLEMENTED;
 					/* Thunk already points to target */
 					target_thunk = p;
 					break;
