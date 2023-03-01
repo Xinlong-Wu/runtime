@@ -1307,28 +1307,20 @@ mono_arch_emit_outarg_vt (MonoCompile *cfg, MonoInst *ins, MonoInst *src)
 
 	switch (ainfo->storage){
 		case ArgVtypeInIReg:{
-			if(ainfo->size > sizeof (host_mgreg_t)){
-				MONO_INST_NEW (cfg, load, op_load);
-				load->dreg = mono_alloc_ireg (cfg);
-				load->inst_basereg = src->dreg;
-				load->inst_offset = 2 * sizeof (host_mgreg_t);
-				MONO_ADD_INS (cfg->cbb, load);
-				add_outarg_reg (cfg, call, ArgInIReg, ainfo->reg, load);
+			MONO_INST_NEW (cfg, load, op_load);
+			load->dreg = mono_alloc_ireg (cfg);
+			load->inst_basereg = src->dreg;
+			load->inst_offset = 0;
+			MONO_ADD_INS (cfg->cbb, load);
+			add_outarg_reg (cfg, call, ArgInIReg, ainfo->reg, load);
 
+			if(ainfo->size > sizeof (host_mgreg_t)){
 				MONO_INST_NEW (cfg, load, op_load);
 				load->dreg = mono_alloc_ireg (cfg);
 				load->inst_basereg = src->dreg;
 				load->inst_offset = sizeof (target_mgreg_t);
 				MONO_ADD_INS (cfg->cbb, load);
 				add_outarg_reg (cfg, call, ArgInIReg, ainfo->reg + 1, load);
-			}
-			else{
-				MONO_INST_NEW (cfg, load, op_load);
-				load->dreg = mono_alloc_ireg (cfg);
-				load->inst_basereg = src->dreg;
-				load->inst_offset = sizeof (host_mgreg_t);
-				MONO_ADD_INS (cfg->cbb, load);
-				add_outarg_reg (cfg, call, ArgInIReg, ainfo->reg, load);
 			}
 		}
 		case ArgVtypeOnStack:{
