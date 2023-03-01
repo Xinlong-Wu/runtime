@@ -1401,10 +1401,12 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 #endif
 		case OP_IAND_IMM:
 		case OP_LAND_IMM:
+		case OP_LNOT:
 		case OP_IOR:
 		case OP_IOR_IMM:
 		case OP_ISHL_IMM:
 		case OP_ISHR_UN_IMM:
+		case OP_ISHR_IMM:
 		case OP_LSHR_IMM:
 		case OP_LSHR_UN_IMM:
 
@@ -1655,6 +1657,7 @@ loop_start:
 			case OP_LREM_UN:
 			case OP_CHECK_THIS:
 			case OP_IAND:
+			case OP_LAND:
 			case OP_XOR_IMM:
 			case OP_IXOR:
 			case OP_IOR:
@@ -1664,6 +1667,7 @@ loop_start:
 			case OP_SHL_IMM:
 			case OP_LSHL_IMM:
 			case OP_SHR_IMM:
+			case OP_ISHR_IMM:
 			case OP_SHR_UN_IMM:
 			case OP_ISHR_UN_IMM:
 			case OP_ISHL_IMM:
@@ -1847,17 +1851,18 @@ loop_start:
 						}			
 					}
 					else if(ins->next->opcode == OP_LCGT || ins->next->opcode == OP_ICGT){
-						g_assert(RISCV_VALID_I_IMM(ins->inst_imm + 1));
-						ins->opcode = OP_RISCV_SLTI;
-						ins->dreg = ins->next->dreg;
-						ins->sreg1 = ins->sreg1;
-						ins->inst_imm = ins->inst_imm + 1;
+						if(RISCV_VALID_I_IMM(ins->inst_imm + 1)){
+							ins->opcode = OP_RISCV_SLTI;
+							ins->dreg = ins->next->dreg;
+							ins->sreg1 = ins->sreg1;
+							ins->inst_imm = ins->inst_imm + 1;
 
-						ins->next->opcode = OP_XOR_IMM;
-						ins->next->dreg = ins->dreg;
-						ins->next->sreg1 = ins->dreg;
-						ins->next->inst_imm = 1;
-						break;
+							ins->next->opcode = OP_XOR_IMM;
+							ins->next->dreg = ins->dreg;
+							ins->next->sreg1 = ins->dreg;
+							ins->next->inst_imm = 1;
+							break;
+						}
 					}
 				}
 				else
@@ -1999,7 +2004,8 @@ loop_start:
 						ins->next->sreg2 = ins->sreg1;
 						NULLIFY_INS (ins);
 					}
-					else if(ins->next->opcode == OP_IL_SEQ_POINT){
+					else if(ins->next->opcode == OP_IL_SEQ_POINT ||
+							ins->next->opcode == OP_MOVE){
 						/**
 						 * there is compare without branch OP followed
 						 * 
@@ -2097,6 +2103,10 @@ loop_start:
 				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_imm))){
 					mono_decompose_op_imm (cfg, bb, ins);
 				}
+				break;
+			case OP_LNOT:
+				ins->opcode = OP_XOR_IMM;
+				ins->inst_imm = -1;
 				break;
 			case OP_ICONV_TO_U1:
 			case OP_LCONV_TO_U1:
@@ -3134,6 +3144,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				riscv_srli(code, ins->dreg, ins->sreg1, ins->inst_imm);
 				break;
 			case OP_SHR_IMM:
+			case OP_ISHR_IMM:
 			case OP_LSHR_IMM:
 				riscv_srai(code, ins->dreg, ins->sreg1, ins->inst_imm);
 				break;
