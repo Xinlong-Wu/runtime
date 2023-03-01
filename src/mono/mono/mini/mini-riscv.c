@@ -2802,6 +2802,18 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 		NOT_IMPLEMENTED;
 	}
 
+	/* Save mrgctx received in MONO_ARCH_RGCTX_REG */
+	if (cfg->rgctx_var) {
+		MonoInst *ins = cfg->rgctx_var;
+
+		g_assert (ins->opcode == OP_REGOFFSET);
+
+		code = mono_riscv_emit_store (code, MONO_ARCH_RGCTX_REG, ins->inst_basereg, ins->inst_offset, 0);
+
+		mono_add_var_location (cfg, cfg->rgctx_var, TRUE, MONO_ARCH_RGCTX_REG, 0, 0, code - cfg->native_code);
+		mono_add_var_location (cfg, cfg->rgctx_var, FALSE, ins->inst_basereg, ins->inst_offset, code - cfg->native_code, 0);
+	}
+
 	/*
 	 * Move arguments to their registers/stack locations.
 	 */

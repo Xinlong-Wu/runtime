@@ -107,8 +107,8 @@ extern gboolean riscv_stdext_a, riscv_stdext_b, riscv_stdext_c,
 
 #endif
 
-#define MONO_ARCH_RGCTX_REG  (RISCV_T2)
-#define MONO_ARCH_IMT_REG    (RISCV_T2)
+#define MONO_ARCH_RGCTX_REG  (RISCV_T6)
+#define MONO_ARCH_IMT_REG    (RISCV_T6)
 #define MONO_ARCH_VTABLE_REG (RISCV_A0)
 
 #define MONO_ARCH_HAVE_VOLATILE_NON_PARAM_REGISTER 0
