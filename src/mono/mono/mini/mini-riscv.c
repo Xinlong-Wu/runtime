@@ -2007,7 +2007,8 @@ loop_start:
 						NULLIFY_INS (ins);
 					}
 					else if(ins->next->opcode == OP_IL_SEQ_POINT ||
-							ins->next->opcode == OP_MOVE){
+							ins->next->opcode == OP_MOVE ||
+							ins->next->opcode == OP_LOAD_MEMBASE){
 						/**
 						 * there is compare without branch OP followed
 						 * 
