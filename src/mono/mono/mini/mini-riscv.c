@@ -612,10 +612,8 @@ add_valuetype (CallInfo *cinfo, ArgInfo *ainfo, MonoType *t){
 
 	// Scalars wider than 2×XLEN bits are passed by reference
 	if (aligned_size > sizeof(host_mgreg_t)*2) {
-		ainfo->storage = ArgVtypeOnStack;
-		cinfo->stack_usage += aligned_size;
+		ainfo->storage = ArgVtypeByRef;
 		ainfo->slot_size = size;
-		ainfo->offset = cinfo->stack_usage;
 	}
 	// Scalars that are 2×XLEN bits wide are passed in a pair of argument registers
 	else if(aligned_size == sizeof(host_mgreg_t)*2){
@@ -1257,7 +1255,8 @@ mono_arch_emit_call (MonoCompile *cfg, MonoCallInst *call)
 					g_assert_not_reached();
  				}
 			}
-			case ArgVtypeInIReg :{
+			case ArgVtypeInIReg :
+			case ArgVtypeByRef:{
 				MonoInst *ins;
 				guint32 align;
 				guint32 size;
@@ -1332,6 +1331,37 @@ mono_arch_emit_outarg_vt (MonoCompile *cfg, MonoInst *ins, MonoInst *src)
 				load->inst_offset = i;
 				MONO_ADD_INS (cfg->cbb, load);
 				MONO_EMIT_NEW_STORE_MEMBASE (cfg, op_load, RISCV_FP, -ainfo->offset + i, load->dreg);
+			}
+			break;
+		}
+		case ArgVtypeByRef:{
+			MonoInst *vtaddr, *arg;
+			/* Pass the vtype address in a reg/on the stack */
+			// if (ainfo->gsharedvt) {
+			// 	load = src;
+			// } else {
+				/* Make a copy of the argument */
+				vtaddr = mono_compile_create_var (cfg, m_class_get_byval_arg (ins->klass), OP_LOCAL);
+				
+				MONO_INST_NEW (cfg, load, OP_LDADDR);
+				load->inst_p0 = vtaddr;
+				vtaddr->flags |= MONO_INST_INDIRECT;
+				load->type = STACK_MP;
+				load->klass = vtaddr->klass;
+				load->dreg = mono_alloc_ireg (cfg);
+				MONO_ADD_INS (cfg->cbb, load);
+				mini_emit_memcpy (cfg, load->dreg, 0, src->dreg, 0, ainfo->size, 8);
+			// }
+
+			if (ainfo->storage == ArgVtypeByRef) {
+				MONO_INST_NEW (cfg, arg, OP_MOVE);
+				arg->dreg = mono_alloc_preg (cfg);
+				arg->sreg1 = load->dreg;
+				MONO_ADD_INS (cfg->cbb, arg);
+				add_outarg_reg (cfg, call, ArgInIReg, ainfo->reg, arg);
+			}
+			else {
+				MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STORE_MEMBASE_REG, RISCV_SP, ainfo->offset, load->dreg);
 			}
 			break;
 		}
@@ -2678,6 +2708,8 @@ emit_move_return_value (MonoCompile *cfg, guint8 * code, MonoInst *ins){
 			}
 			break;
 		}
+		case ArgVtypeByRef:
+			break;
 		default:
 			NOT_IMPLEMENTED;
 			break;
@@ -2965,7 +2997,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				loop_start = code;
 				riscv_beq(code, RISCV_T0, RISCV_T1, 0);
 				code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, 0, 0);
-				code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, sizeof(host_mgreg_t), 0), 0;
+				code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, sizeof(host_mgreg_t), 0);
 #ifdef TARGET_RISCV32
 				code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, sizeof(host_mgreg_t)*2, 0);
 				code = mono_riscv_emit_store(code, RISCV_ZERO, RISCV_T0, sizeof(host_mgreg_t)*3, 0);
