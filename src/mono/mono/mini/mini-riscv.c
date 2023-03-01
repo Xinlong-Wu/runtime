@@ -1405,9 +1405,11 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_IOR:
 		case OP_IOR_IMM:
 		case OP_ISHL_IMM:
-		case OP_ISHR_UN_IMM:
+		case OP_LSHL_IMM:
+		case OP_ISHR_UN:
 		case OP_ISHR_IMM:
 		case OP_LSHR_IMM:
+		case OP_ISHR_UN_IMM:
 		case OP_LSHR_UN_IMM:
 
 		case OP_IMUL:
