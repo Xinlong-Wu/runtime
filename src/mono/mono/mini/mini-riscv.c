@@ -1835,6 +1835,7 @@ loop_start:
 			case OP_I8CONST:
 			case OP_ICONST:
 			case OP_MOVE:
+			case OP_LMOVE:
 			case OP_ISUB:
 			case OP_LSUB:
 			case OP_IADD:
@@ -3271,6 +3272,9 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				code = mono_riscv_emit_nop(code);
 				break;
 			case OP_MOVE:
+#ifdef TARGET_RISCV64
+			case OP_LMOVE:
+#endif
 				// mv ra, a1 -> addi ra, a1, 0
 				riscv_addi(code, ins->dreg, ins->sreg1, 0);
 				break;

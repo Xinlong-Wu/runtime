@@ -84,6 +84,7 @@ atomic_cas_i4: dest:i src1:i src2:i src3:i len:24
 atomic_cas_i8: dest:i src1:i src2:i src3:i len:24
 
 move: dest:i src1:i len:4
+lmove: dest:i src1:i len:4
 
 iconst: dest:i len:16
 i8const: dest:i len:16
