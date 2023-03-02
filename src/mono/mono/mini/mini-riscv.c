@@ -1067,6 +1067,12 @@ mono_arch_opcode_needs_emulation (MonoCompile *cfg, int opcode)
 	case OP_LREM_UN_IMM:
 #endif
 		return !riscv_stdext_m;
+
+	case OP_FDIV:
+#ifdef TARGET_RISCV64
+	case OP_LCONV_TO_R8:
+#endif
+		return !riscv_stdext_f;
 	default:
 		return TRUE;
 	}
@@ -1556,6 +1562,7 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_LCONV_TO_U4:
 		case OP_LCONV_TO_I8:
 		case OP_LCONV_TO_U8:
+		case OP_LCONV_TO_R8:
 #endif
 		case OP_IAND_IMM:
 		case OP_LAND_IMM:
@@ -1583,6 +1590,8 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 
 		case OP_LADD_OVF_UN:
 		case OP_LMUL_OVF_UN_OOM:
+
+		case OP_FDIV:
 			break;
 		default:
 			g_print("Can't decompose the OP %s\n",mono_inst_name (ins->opcode));
