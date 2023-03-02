@@ -1884,7 +1884,12 @@ loop_start:
 			case OP_ATOMIC_STORE_I4:
 			case OP_ATOMIC_CAS_I4:
 			case OP_ATOMIC_CAS_I8:
+
+			/* Float Ext */
+			case OP_R8CONST:
 				break;
+
+
 
 			case OP_LOCALLOC_IMM:{
 				if (ins->inst_imm > 32){
@@ -2426,6 +2431,34 @@ mono_riscv_emit_imm (guint8 *code, int rd, gsize imm)
 
 	if (!RISCV_VALID_U_IMM (imm))
 		riscv_ori (code, rd, rd, RISCV_BITS (imm, 0, 12));
+#endif
+
+	return code;
+}
+
+guint8 *
+mono_riscv_emit_float (guint8 *code, int rd, gsize r_imm){
+
+	if(r_imm == 0){
+		if(riscv_stdext_f)
+			NOT_IMPLEMENTED;
+		else
+			riscv_addi (code, rd, RISCV_ZERO, 0);
+
+		return code;
+	}
+
+	riscv_jal (code, rd, sizeof (guint64) + 4);
+	*(guint64 *) code = r_imm;
+	code += sizeof (guint64);
+
+	if(riscv_stdext_f)
+		NOT_IMPLEMENTED;
+	else
+#ifdef TARGET_RISCV64
+		riscv_ld (code, rd, rd, 0);
+#else
+		riscv_lw (code, rd, rd, 0);
 #endif
 
 	return code;
@@ -3392,6 +3425,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				NOT_IMPLEMENTED;
 				break;
 #endif
+
 			/* Atomic */
 			case OP_MEMORY_BARRIER:
 				riscv_fence(code, RISCV_FENCE_MEM, RISCV_FENCE_MEM);
@@ -3444,6 +3478,12 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				
 				riscv_fence(code, RISCV_FENCE_MEM, RISCV_FENCE_MEM);
 				riscv_addi(code, ins->dreg, RISCV_T0, 0);
+				break;
+			}
+
+			/* Float */
+			case OP_R8CONST:{
+				code = mono_riscv_emit_float(code, ins->dreg, *(guint64*)ins->inst_p0);
 				break;
 			}
 
