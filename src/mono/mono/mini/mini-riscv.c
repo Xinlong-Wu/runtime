@@ -602,6 +602,8 @@ riscv_patch_full (MonoCompile *cfg, guint8 *code, guint8 *target, int relocation
 			// if the offset too large to encode as B_IMM
 			// try to use jal to branch
 			if(!RISCV_VALID_B_IMM ((gint32) (gssize) (offset))){
+				// branch inst should followed by a nop inst
+				g_assert(*(gint32 *)(code+4) == 0x13);
 				if(riscv_is_jal_disp(code, target)){
 					if(relocation == MONO_R_RISCV_BEQ)
 						riscv_bne (code, rs1, rs2, 8);
