@@ -1562,6 +1562,7 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_LNOT:
 		case OP_IOR:
 		case OP_IOR_IMM:
+		case OP_ISHL:
 		case OP_ISHL_IMM:
 		case OP_LSHL_IMM:
 		case OP_ISHR_UN:
@@ -1826,11 +1827,13 @@ loop_start:
 			case OP_IOR_IMM:
 			case OP_LOR:
 			case OP_LOR_IMM:
+			case OP_ISHL:
 			case OP_SHL_IMM:
 			case OP_LSHL_IMM:
 			case OP_SHR_IMM:
 			case OP_ISHR_IMM:
 			case OP_SHR_UN_IMM:
+			case OP_ISHR_UN:
 			case OP_ISHR_UN_IMM:
 			case OP_ISHL_IMM:
 			case OP_LSHR_IMM:
@@ -3320,19 +3323,47 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_RISCV_SLTIU:
 				riscv_sltiu(code, ins->dreg, ins->sreg1, ins->inst_imm);
 				break;
-			case OP_SHR_UN_IMM:
+			case OP_ISHR_UN:
+#ifdef TARGET_RISCV64
+				riscv_srlw(code, ins->dreg, ins->sreg1, ins->sreg2);
+				break;
+			case OP_LSHR_UN:
+#endif
+				riscv_srl(code, ins->dreg, ins->sreg1, ins->sreg2);
+				break;
 			case OP_ISHR_UN_IMM:
+#ifdef TARGET_RISCV64
+				riscv_srliw(code, ins->dreg, ins->sreg1, ins->inst_imm);
+				break;
 			case OP_LSHR_UN_IMM:
+#endif
+			case OP_SHR_UN_IMM:
 				riscv_srli(code, ins->dreg, ins->sreg1, ins->inst_imm);
 				break;
-			case OP_SHR_IMM:
 			case OP_ISHR_IMM:
+#ifdef TARGET_RISCV64
+				riscv_sraiw(code, ins->dreg, ins->sreg1, ins->inst_imm);
+				break;
 			case OP_LSHR_IMM:
+#endif
+			case OP_SHR_IMM:
 				riscv_srai(code, ins->dreg, ins->sreg1, ins->inst_imm);
 				break;
-			case OP_SHL_IMM:
+			case OP_ISHL:
+#ifdef TARGET_RISCV64
+				riscv_sllw(code, ins->dreg, ins->sreg1, ins->sreg2);
+				break;
+			case OP_LSHL:
+#endif
+				riscv_sll(code, ins->dreg, ins->sreg1, ins->sreg2);
+				break;
 			case OP_ISHL_IMM:
+#ifdef TARGET_RISCV64
+				riscv_slliw(code, ins->dreg, ins->sreg1, ins->inst_imm);
+				break;
 			case OP_LSHL_IMM:
+#endif
+			case OP_SHL_IMM:
 				riscv_slli(code, ins->dreg, ins->sreg1, ins->inst_imm);
 				break;
 #if defined(TARGET_RISCV64)
