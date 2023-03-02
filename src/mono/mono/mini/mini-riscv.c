@@ -1815,6 +1815,7 @@ loop_start:
 			case OP_GC_SAFE_POINT:
 			case OP_BR:
 			case OP_CALL:
+			case OP_FCALL:
 			case OP_LCALL:
 			case OP_VCALL2:
 			case OP_VOIDCALL:
@@ -3490,6 +3491,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			/* Calls */
 			case OP_VOIDCALL:
 			case OP_CALL:
+			case OP_FCALL:
 			case OP_LCALL:
 			case OP_VCALL2: {
 				call = (MonoCallInst*)ins;
