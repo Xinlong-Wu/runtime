@@ -37,9 +37,10 @@ void
 mono_arch_init (void)
 {
 	riscv_stdext_a = mono_hwcap_riscv_has_stdext_a;
-	riscv_stdext_c = mono_hwcap_riscv_has_stdext_c;
-	riscv_stdext_d = mono_hwcap_riscv_has_stdext_d;
-	riscv_stdext_f = mono_hwcap_riscv_has_stdext_f;
+	// TODO: skip float and compress inst for now
+	riscv_stdext_c = FALSE;
+	riscv_stdext_d = FALSE;
+	riscv_stdext_f = FALSE;
 	riscv_stdext_m = mono_hwcap_riscv_has_stdext_m;
 
 	if (!mono_aot_only)
@@ -686,7 +687,7 @@ mono_arch_patch_code_new (MonoCompile *cfg, guint8 *code,
 
 
 /**
- * add_int32_arg:
+ * add_arg:
  * 	Add Arguments into a0-a7 reg. 
  * 	if there is no available store it into stack.
  */
@@ -833,6 +834,13 @@ add_param (CallInfo *cinfo, ArgInfo *ainfo, MonoType *t){
 #endif
 			add_arg (cinfo, ainfo, 8, FALSE);
 			break;
+		case MONO_TYPE_R8:
+			if(riscv_stdext_f)
+				NOT_IMPLEMENTED;
+			else
+				add_arg (cinfo, ainfo, 8, FALSE);
+			break;
+
 		case MONO_TYPE_GENERICINST:{
 			if (!mono_type_generic_inst_is_valuetype (ptype)) {
 				add_arg (cinfo, ainfo, sizeof(host_mgreg_t), FALSE);
@@ -846,7 +854,7 @@ add_param (CallInfo *cinfo, ArgInfo *ainfo, MonoType *t){
 		case MONO_TYPE_VALUETYPE:
 			add_valuetype (cinfo, ainfo, ptype);
 			break;
-		
+
 		default:
 			g_print ("Can't handle as return value 0x%x\n", ptype->type);
 			g_assert_not_reached();
