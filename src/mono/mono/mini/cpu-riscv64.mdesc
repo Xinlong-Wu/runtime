@@ -66,6 +66,7 @@ storei1_membase_reg: dest:b src1:i len:4
 storei2_membase_reg: dest:b src1:i len:4
 storei4_membase_reg: dest:b src1:i len:4
 storei8_membase_reg: dest:b src1:i len:4
+storer8_membase_reg: dest:b src1:i len:4
 
 load_membase: dest:i src1:b len:24
 loadu1_membase: dest:i src1:b len:16
@@ -75,6 +76,7 @@ loadi2_membase: dest:i src1:b len:16
 loadu4_membase: dest:i src1:b len:16
 loadi4_membase: dest:i src1:b len:16
 loadi8_membase: dest:i src1:b len:16
+loadr8_membase: dest:i src1:b len:16
 
 memory_barrier: len:4
 atomic_store_i4: dest:b src1:i len:8
@@ -85,6 +87,7 @@ move: dest:i src1:i len:4
 
 iconst: dest:i len:16
 i8const: dest:i len:16
+r8const: dest:i len:16
 int_add: dest:i src1:i src2:i len:4
 long_add: dest:i src1:i src2:i len:4
 int_sub: dest:i src1:i src2:i len:4

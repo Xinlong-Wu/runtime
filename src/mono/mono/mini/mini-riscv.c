@@ -1077,7 +1077,10 @@ mono_arch_opcode_needs_emulation (MonoCompile *cfg, int opcode)
 		return !riscv_stdext_m;
 
 	case OP_FDIV:
+	case OP_FMUL:
+	case OP_FCONV_TO_I4:
 #ifdef TARGET_RISCV64
+	case OP_ICONV_TO_R8:
 	case OP_LCONV_TO_R8:
 #endif
 		return !riscv_stdext_f;
@@ -1558,6 +1561,7 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_ICONV_TO_U1:
 		case OP_ICONV_TO_I2:
 		case OP_ICONV_TO_U2:
+		case OP_FCONV_TO_I4:
 #ifdef TARGET_RISCV64
 		case OP_ICONV_TO_I4:
 		case OP_ICONV_TO_U4:
@@ -1570,6 +1574,8 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_LCONV_TO_U4:
 		case OP_LCONV_TO_I8:
 		case OP_LCONV_TO_U8:
+
+		case OP_ICONV_TO_R8:
 		case OP_LCONV_TO_R8:
 #endif
 		case OP_IAND_IMM:
@@ -1588,7 +1594,9 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 
 		case OP_IMUL:
 		case OP_LMUL:
+		case OP_FMUL:
 		case OP_LMUL_IMM:
+		case OP_IDIV:
 		case OP_LDIV:
 		case OP_LDIV_UN:
 		case OP_IDIV_UN:
@@ -1888,6 +1896,10 @@ loop_start:
 
 			/* Float Ext */
 			case OP_R8CONST:
+#ifdef TARGET_RISCV64
+			case OP_STORER8_MEMBASE_REG:
+			case OP_LOADR8_MEMBASE:
+#endif
 				break;
 
 
@@ -3485,6 +3497,20 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			/* Float */
 			case OP_R8CONST:{
 				code = mono_riscv_emit_float(code, ins->dreg, *(guint64*)ins->inst_p0);
+				break;
+			}
+			case OP_STORER8_MEMBASE_REG:{
+				if(riscv_stdext_f)
+					NOT_IMPLEMENTED;
+				else
+					code = mono_riscv_emit_store(code, ins->sreg1, ins->dreg, ins->inst_offset, 8);
+				break;
+			}
+			case OP_LOADR8_MEMBASE:{
+				if(riscv_stdext_f)
+					NOT_IMPLEMENTED;
+				else
+					code = mono_riscv_emit_load(code, ins->dreg, ins->sreg1, ins->inst_offset, 8);
 				break;
 			}
 
