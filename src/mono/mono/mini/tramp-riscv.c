@@ -337,8 +337,136 @@ gpointer
 mono_arch_build_imt_trampoline (MonoVTable *vtable, MonoIMTCheckItem **imt_entries, int count,
                                 gpointer fail_tramp)
 {
-	NOT_IMPLEMENTED;
-	return NULL;
+	int i, buf_len, imt_reg;
+	guint8 *buf, *code;
+
+#if DEBUG_IMT
+	printf ("building IMT trampoline for class %s %s entries %d code size %d code at %p end %p vtable %p\n", m_class_get_name_space (vtable->klass), m_class_get_name (vtable->klass), count, size, start, ((guint8*)start) + size, vtable);
+	for (i = 0; i < count; ++i) {
+		MonoIMTCheckItem *item = imt_entries [i];
+		printf ("method %d (%p) %s vtable slot %p is_equals %d chunk size %d\n", i, item->key, item->key->name, &vtable->vtable [item->value.vtable_slot], item->is_equals, item->chunk_size);
+	}
+#endif
+
+	buf_len = 0;
+	for (i = 0; i < count; ++i){
+		MonoIMTCheckItem *item = imt_entries [i];
+		if (item->is_equals) {
+			gboolean fail_case = !item->check_target_idx && fail_tramp;
+			if (item->check_target_idx || fail_case) {
+				buf_len += 5 * 4;
+				if (item->has_target_code) {
+					NOT_IMPLEMENTED;
+					buf_len += 5 * 4;
+				} else {
+					buf_len += 6 * 4;
+				}
+				if (fail_case) {
+					buf_len += 5 * 4;
+				}
+			}
+			else{
+				NOT_IMPLEMENTED;
+				buf_len += 6 * 4;
+			}
+		}
+		else{
+			NOT_IMPLEMENTED;
+			buf_len += 5 * 4;
+		}
+	}
+
+	if (fail_tramp){
+		buf = (guint8 *)mini_alloc_generic_virtual_trampoline (vtable, buf_len);
+	}
+	else {
+		MonoMemoryManager *mem_manager = m_class_get_mem_manager (vtable->klass);
+		buf = mono_mem_manager_code_reserve (mem_manager, buf_len);
+	}
+	code = buf;
+
+	MINI_BEGIN_CODEGEN ();
+
+	/*
+	 * We are called by JITted code, which passes in the IMT argument in
+	 * MONO_ARCH_RGCTX_REG (T6). We need to preserve all caller saved regs
+	 */
+	imt_reg = MONO_ARCH_RGCTX_REG;
+	for (i = 0; i < count; ++i){
+		MonoIMTCheckItem *item = imt_entries [i];
+
+		item->code_target = code;
+
+		if (item->is_equals){
+			/*
+			 * Check the imt argument against item->key, if equals, jump to either
+			 * item->value.target_code or to vtable [item->value.vtable_slot].
+			 * If fail_tramp is set, jump to it if not-equals.
+			 */
+			gboolean fail_case = !item->check_target_idx && fail_tramp;
+
+			if (item->check_target_idx || fail_case){
+				/* Compare imt_reg with item->key */
+				g_assert(!item->compare_done);
+				code = mono_riscv_emit_imm (code, RISCV_T0, (guint64)item->key);
+				item->jmp_code = code;
+				riscv_bne(code, imt_reg, RISCV_T0,0);
+
+				/* Jump to target if equals */
+				if (item->has_target_code) {
+					code = mono_riscv_emit_imm (code, RISCV_T0, (guint64)item->value.target_code);
+					riscv_jalr(code, RISCV_ZERO, RISCV_T0, 0);
+				}
+				else{
+					guint64 imm = (guint64)&(vtable->vtable [item->value.vtable_slot]);
+
+					code = mono_riscv_emit_imm (code, RISCV_T0, imm);
+					code = mono_riscv_emit_load (code, RISCV_T0, RISCV_T0, 0, 0);
+					riscv_jalr(code, RISCV_ZERO, RISCV_T0, 0);
+				}
+
+				if (fail_case) {
+					mono_riscv_patch(item->jmp_code, code, MONO_R_RISCV_BNE);
+					item->jmp_code = NULL;
+					code = mono_riscv_emit_imm (code, RISCV_T0, (guint64)fail_tramp);
+					riscv_jalr(code, RISCV_ZERO, RISCV_T0, 0);
+				}
+			}
+			else {
+				guint64 imm = (guint64)&(vtable->vtable [item->value.vtable_slot]);
+
+				code = mono_riscv_emit_imm (code, RISCV_T0, imm);
+				code = mono_riscv_emit_load (code, RISCV_T0, RISCV_T0, 0, 0);
+				riscv_jalr(code, RISCV_ZERO, RISCV_T0, 0);
+			}
+		}
+		else{
+			NOT_IMPLEMENTED;
+			code = mono_riscv_emit_imm (code, RISCV_T0, (guint64)item->key);
+			item->jmp_code = code;
+			riscv_bgeu(code, imt_reg, RISCV_T0, 0);
+		}
+	}
+
+	/* Patch the branches */
+	for (i = 0; i < count; ++i) {
+		MonoIMTCheckItem *item = imt_entries [i];
+		if (item->jmp_code && item->check_target_idx){
+			if (item->is_equals){
+				mono_riscv_patch(item->jmp_code, imt_entries [item->check_target_idx]->code_target, MONO_R_RISCV_BNE);
+			}
+			else{
+				mono_riscv_patch(item->jmp_code, imt_entries [item->check_target_idx]->code_target, MONO_R_RISCV_BGEU);
+			}
+		}
+	}
+
+	g_assert ((code - buf) <= buf_len);
+
+	MINI_END_CODEGEN (buf, code - buf, MONO_PROFILER_CODE_BUFFER_IMT_TRAMPOLINE, NULL);
+
+	return MINI_ADDR_TO_FTNPTR (buf);
+
 }
 
 gpointer
