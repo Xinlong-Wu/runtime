@@ -1949,6 +1949,7 @@ loop_start:
 			// RISC-V dosn't support store Imm to Memory directly
 			// store Imm into Reg firstly.
 			case OP_STOREI1_MEMBASE_IMM:
+			case OP_STOREI2_MEMBASE_IMM:
 			case OP_STOREI4_MEMBASE_IMM:
 #ifdef TARGET_RISCV64
 			case OP_STOREI8_MEMBASE_IMM:
@@ -1971,6 +1972,9 @@ loop_start:
 						break;
 					case OP_STOREI1_MEMBASE_IMM:
 						ins->opcode = OP_STOREI1_MEMBASE_REG;
+						break;
+					case OP_STOREI2_MEMBASE_IMM:
+						ins->opcode = OP_STOREI2_MEMBASE_REG;
 						break;
 					case OP_STOREI4_MEMBASE_IMM:
 						ins->opcode = OP_STOREI4_MEMBASE_REG;
