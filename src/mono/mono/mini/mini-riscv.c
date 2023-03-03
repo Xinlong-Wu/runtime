@@ -2185,9 +2185,9 @@ loop_start:
 						NULLIFY_INS (ins);
 					}
 					else if(ins->next->opcode == OP_LCEQ || ins->next->opcode == OP_ICEQ){
-						// compare rs1, rs2; lceq rd => xor rs1, rs1, rs2; sltiu rd, rs1, 1
+						// compare rs1, rs2; lceq rd => xor rd, rs1, rs2; sltiu rd, rd, 1
 						ins->opcode = OP_IXOR;
-						ins->dreg = ins->sreg1;
+						ins->dreg = ins->next->dreg;
 
 						ins->next->opcode = OP_RISCV_SLTIU;
 						ins->next->sreg1 = ins->dreg;
