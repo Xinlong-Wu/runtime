@@ -741,8 +741,20 @@ add_valuetype (CallInfo *cinfo, ArgInfo *ainfo, MonoType *t){
 
 	// Scalars wider than 2×XLEN bits are passed by reference
 	if (aligned_size > sizeof(host_mgreg_t)*2) {
-		ainfo->storage = ArgVtypeByRef;
-		ainfo->slot_size = size;
+		if(cinfo->next_areg > RISCV_A7){
+			ainfo->storage = ArgVtypeByRefOnStack;
+			cinfo->stack_usage += aligned_size;
+			ainfo->slot_size = aligned_size;
+			ainfo->offset = cinfo->stack_usage;
+		}
+		else{
+			ainfo->storage = ArgVtypeByRef;
+			ainfo->reg = cinfo->next_areg;
+			ainfo->size = sizeof(host_mgreg_t);
+			ainfo->is_regpair = FALSE;
+
+			cinfo->next_areg += 1;
+		}
 	}
 	// Scalars that are 2×XLEN bits wide are passed in a pair of argument registers
 	else if(aligned_size == sizeof(host_mgreg_t)*2){
@@ -765,7 +777,7 @@ add_valuetype (CallInfo *cinfo, ArgInfo *ainfo, MonoType *t){
 			ainfo->size = sizeof(host_mgreg_t);
 			ainfo->is_regpair = FALSE;
 
-			cinfo->next_areg++;
+			cinfo->next_areg += 1;
 		}
 		// Scalars that are 2×XLEN bits wide are passed in a pair of argument 
 		// registers, with the low-order XLEN bits in the lower-numbered register
@@ -786,7 +798,7 @@ add_valuetype (CallInfo *cinfo, ArgInfo *ainfo, MonoType *t){
 		ainfo->size = sizeof(host_mgreg_t);
 		ainfo->is_regpair = TRUE;
 
-		cinfo->next_areg = 1;
+		cinfo->next_areg += 1;
 	}
 }
 
@@ -871,6 +883,7 @@ CallInfo *
 get_call_info(MonoMemPool *mp, MonoMethodSignature *sig){
 	CallInfo *cinfo;
 	int paramNum = sig->hasthis + sig->param_count;
+	int pindex;
 	if (mp)
 		cinfo = mono_mempool_alloc0 (mp, sizeof (CallInfo) + (sizeof (ArgInfo) * paramNum));
 	else
@@ -881,9 +894,18 @@ get_call_info(MonoMemPool *mp, MonoMethodSignature *sig){
 	// return value
 	cinfo->next_areg = RISCV_A0;
 	add_param (cinfo, &cinfo->ret, sig->ret);
+	
+	//  If the reture value would have been passed by reference, 
+	// the caller allocates memory for the return value, and 
+	// passes the address as an implicit first parameter.
+	if (cinfo->ret.storage == ArgVtypeByRef){
+		g_assert(cinfo->ret.reg == RISCV_A0);
+		cinfo->next_areg = RISCV_A1;
+	}
+	else
+		cinfo->next_areg = RISCV_A0;
 
 	// reset status
-	cinfo->next_areg = RISCV_A0;
 	cinfo->stack_usage = 0;
 
 	// add this pointer as first argument if hasthis == true
@@ -892,15 +914,20 @@ get_call_info(MonoMemPool *mp, MonoMethodSignature *sig){
 
 	// other general Arguments
 	guint32 paramStart = 0;
-	for(guint32 i = paramStart; i < sig->param_count; ++i){
-		ArgInfo *ainfo = cinfo->args + sig->hasthis + i;
+	for(pindex = paramStart; pindex < sig->param_count; ++pindex){
+		ArgInfo *ainfo = cinfo->args + sig->hasthis + pindex;
 
 		// process the variable parameter sig->sentinelpos mark the first VARARG
-		if ((sig->call_convention == MONO_CALL_VARARG) && (i == sig->sentinelpos)) {
+		if ((sig->call_convention == MONO_CALL_VARARG) && (pindex == sig->sentinelpos)) {
 			NOT_IMPLEMENTED;
 		}
 
-		add_param (cinfo, ainfo, sig->params [i]);
+		add_param (cinfo, ainfo, sig->params [pindex]);
+	}
+
+	/* Handle the case where there are no implicit arguments */
+	if ((sig->call_convention == MONO_CALL_VARARG) && (pindex == sig->sentinelpos)) {
+		NOT_IMPLEMENTED;
 	}
 
 	cinfo->stack_usage = ALIGN_TO (cinfo->stack_usage, MONO_ARCH_FRAME_ALIGNMENT);
@@ -968,6 +995,7 @@ mono_arch_set_native_call_context_args (CallContext *ccontext, gpointer frame, M
 	if (sig->ret->type != MONO_TYPE_VOID){
 		ainfo = &cinfo->ret;
 		if (ainfo->storage == ArgVtypeByRef) {
+			g_assert(cinfo->ret.reg == RISCV_A0);
 			storage = interp_cb->frame_arg_to_storage ((MonoInterpFrameHandle)frame, sig, -1);
 			ccontext->gregs [cinfo->ret.reg] = (gsize)storage;
 		}
@@ -1321,6 +1349,8 @@ mono_arch_emit_call (MonoCompile *cfg, MonoCallInst *call)
 			MONO_EMIT_NEW_UNALU (cfg, OP_MOVE, cfg->arch.vret_addr_loc->dreg, call->vret_var->dreg);
 			break;
 		case ArgVtypeByRef:
+			/* Pass the vtype return address in A0 */
+			g_assert(cinfo->ret.reg == RISCV_A0);
 			g_assert (!MONO_IS_TAILCALL_OPCODE (call) || call->vret_var == cfg->vret_addr);
 			MONO_INST_NEW (cfg, vtarg, OP_MOVE);
 			vtarg->sreg1 = call->vret_var->dreg;
