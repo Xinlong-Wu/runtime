@@ -1429,6 +1429,7 @@ mono_arch_emit_call (MonoCompile *cfg, MonoCallInst *call)
 				default:
 					g_assert_not_reached();
  				}
+				break;
 			}
 			case ArgVtypeInIReg :
 			case ArgVtypeByRef:{
