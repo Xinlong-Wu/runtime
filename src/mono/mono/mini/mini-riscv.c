@@ -2283,7 +2283,8 @@ loop_start:
 					else if(ins->next->opcode == OP_IL_SEQ_POINT ||
 							ins->next->opcode == OP_MOVE ||
 							ins->next->opcode == OP_LOAD_MEMBASE ||
-							ins->next->opcode == OP_NOP){
+							ins->next->opcode == OP_NOP ||
+							ins->next->opcode == OP_LOADI4_MEMBASE){
 						/**
 						 * there is compare without branch OP followed
 						 * 
