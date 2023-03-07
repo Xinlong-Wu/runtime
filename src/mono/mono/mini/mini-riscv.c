@@ -1658,6 +1658,8 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_IREM_UN:
 		case OP_LREM_UN:
 
+		case OP_ICONV_TO_OVF_U2:
+
 		case OP_LADD_OVF_UN:
 		case OP_LMUL_OVF_UN_OOM:
 
