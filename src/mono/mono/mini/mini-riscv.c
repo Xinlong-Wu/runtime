@@ -2174,6 +2174,12 @@ loop_start:
 						ins->next->sreg2 = ins->sreg1;
 						NULLIFY_INS (ins);
 					}
+					else if(ins->next->opcode == OP_COND_EXC_IGT_UN || ins->next->opcode == OP_COND_EXC_GT_UN){
+						ins->next->opcode = OP_RISCV_EXC_BLTU;
+						ins->next->sreg1 = ins->sreg2;
+						ins->next->sreg2 = ins->sreg1;
+						NULLIFY_INS (ins);
+					}
 					else if(ins->next->opcode == OP_LBEQ || ins->next->opcode == OP_IBEQ){
 						ins->next->opcode = OP_RISCV_BEQ;
 						ins->next->sreg1 = ins->sreg1;
