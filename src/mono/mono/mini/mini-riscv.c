@@ -1655,6 +1655,7 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_LDIV_UN:
 		case OP_IDIV_UN:
 		case OP_IREM:
+		case OP_LREM:
 		case OP_IREM_UN:
 		case OP_LREM_UN:
 
@@ -1903,6 +1904,7 @@ loop_start:
 			case OP_LDIV:
 			case OP_LDIV_UN:
 			case OP_IREM:
+			case OP_LREM:
 			case OP_IREM_UN:
 			case OP_LREM_UN:
 			case OP_CHECK_THIS:
@@ -2277,7 +2279,8 @@ loop_start:
 					}
 					else if(ins->next->opcode == OP_IL_SEQ_POINT ||
 							ins->next->opcode == OP_MOVE ||
-							ins->next->opcode == OP_LOAD_MEMBASE){
+							ins->next->opcode == OP_LOAD_MEMBASE ||
+							ins->next->opcode == OP_NOP){
 						/**
 						 * there is compare without branch OP followed
 						 * 
@@ -3430,6 +3433,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				riscv_divu(code, ins->dreg, ins->sreg1, ins->sreg2);
 				break;
 			case OP_IREM:
+			case OP_LREM:
 				g_assert(riscv_stdext_m);
 				code = mono_riscv_emit_branch_exc(cfg, code, OP_RISCV_EXC_BEQ, ins->sreg2, RISCV_ZERO, "DivideByZeroException");
 				riscv_rem (code, ins->dreg, ins->sreg1, ins->sreg2);
