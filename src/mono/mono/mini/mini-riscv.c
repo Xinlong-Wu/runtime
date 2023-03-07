@@ -689,7 +689,7 @@ mono_arch_patch_code_new (MonoCompile *cfg, guint8 *code,
 /**
  * add_arg:
  * 	Add Arguments into a0-a7 reg. 
- * 	if there is no available store it into stack.
+ * 	if there is no available regs, store it into stack.
  */
 static void
 add_arg(CallInfo *cinfo, ArgInfo *ainfo, int size, gboolean sign) {
@@ -722,10 +722,10 @@ add_arg(CallInfo *cinfo, ArgInfo *ainfo, int size, gboolean sign) {
 	}
 	// If no argument registers are available, the scalar is passed on the stack by value
 	else{
-		cinfo->stack_usage += size;
+		// 	cinfo->stack_usage & ainfo->offset 
+		// will be calculated in get_call_info()
 		ainfo->storage = ArgOnStack;
 		ainfo->slot_size = size;
-		ainfo->offset = cinfo->stack_usage;
 		ainfo->is_signed = sign;
 	}
 
@@ -878,6 +878,9 @@ add_param (CallInfo *cinfo, ArgInfo *ainfo, MonoType *t){
  * get_call_info:
  * 	create call info here.
  *  allocate memory for *cinfo, and assign Regs for Arguments.
+ *  if thsere is no available regs, store it into stack top of caller
+ *  in increase order.
+ *  eg. 8th arg is stored at sp+8, 9th arg is stored at sp+0, etc.
  */
 CallInfo *
 get_call_info(MonoMemPool *mp, MonoMethodSignature *sig){
@@ -914,6 +917,7 @@ get_call_info(MonoMemPool *mp, MonoMethodSignature *sig){
 
 	// other general Arguments
 	guint32 paramStart = 0;
+	guint32 argStack = 0;
 	for(pindex = paramStart; pindex < sig->param_count; ++pindex){
 		ArgInfo *ainfo = cinfo->args + sig->hasthis + pindex;
 
@@ -923,6 +927,24 @@ get_call_info(MonoMemPool *mp, MonoMethodSignature *sig){
 		}
 
 		add_param (cinfo, ainfo, sig->params [pindex]);
+
+		if(ainfo->storage == ArgOnStack){
+			argStack += ainfo->slot_size;
+		}
+	}
+
+	// reserve the regs stored at the srack
+	if(argStack > 0){
+		cinfo->stack_usage += argStack;
+
+		for(pindex = paramStart; pindex < sig->param_count; ++pindex){
+			ArgInfo *ainfo = cinfo->args + sig->hasthis + pindex;
+			if(ainfo->storage == ArgOnStack){
+				g_assert(argStack >= ainfo->slot_size);
+				argStack -= ainfo->slot_size;
+				ainfo->offset = argStack;
+			}
+		}
 	}
 
 	/* Handle the case where there are no implicit arguments */
@@ -1405,25 +1427,26 @@ mono_arch_emit_call (MonoCompile *cfg, MonoCallInst *call)
 			case ArgOnStack:{
 				switch (ainfo->slot_size){
 				case 1:
-					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI1_MEMBASE_REG, RISCV_FP, -ainfo->offset, arg->dreg);
+					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI1_MEMBASE_REG, RISCV_SP, ainfo->offset, arg->dreg);
 					break;
 				case 2:
-					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI2_MEMBASE_REG, RISCV_FP, -ainfo->offset, arg->dreg);
+					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI2_MEMBASE_REG, RISCV_SP, ainfo->offset, arg->dreg);
 					break;
 				case 4:
-					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI4_MEMBASE_REG, RISCV_FP, -ainfo->offset, arg->dreg);
+					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI4_MEMBASE_REG, RISCV_SP, ainfo->offset, arg->dreg);
 					break;
 				case 8:
 #ifdef TARGET_RISCV32
  					NOT_IMPLEMENTED;
 					break;
 #else // TARGET_RISCV64
-					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI8_MEMBASE_REG, RISCV_FP, -ainfo->offset, arg->dreg);
+					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI8_MEMBASE_REG, RISCV_SP, ainfo->offset, arg->dreg);
 					break;
 				// RV64 Only, XLEN*2 == 16
 				case 16:
-					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI8_MEMBASE_REG, RISCV_FP, -ainfo->offset, arg->dreg);
-					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI8_MEMBASE_REG, RISCV_FP, -ainfo->offset + 8, arg->dreg+1);
+					NOT_IMPLEMENTED;
+					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI8_MEMBASE_REG, RISCV_SP, ainfo->offset, arg->dreg);
+					MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STOREI8_MEMBASE_REG, RISCV_SP, ainfo->offset + 8, arg->dreg+1);
 					break;
 #endif
 				default:
@@ -1744,6 +1767,9 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 			case ArgOnStack:
 			case ArgVtypeOnStack:
 				/* These are in the parent frame */
+				g_assert(ainfo->offset > 0);
+				ins->inst_basereg = RISCV_FP;
+				ins->inst_offset = ainfo->offset;
 				NOT_IMPLEMENTED;
 				break;
 			case ArgVtypeInIReg:
@@ -2903,6 +2929,12 @@ emit_move_args (MonoCompile *cfg, guint8 *code){
 						code = mono_riscv_emit_store(code, ainfo->reg + 1, ins->inst_basereg, ins->inst_offset + sizeof(host_mgreg_t), 0);
 					code = mono_riscv_emit_store(code, ainfo->reg, ins->inst_basereg, ins->inst_offset, 0);
 					break;
+				case ArgOnStack:{
+					NOT_IMPLEMENTED;
+					g_assert(ainfo->slot_size <= sizeof(host_mgreg_t));
+					code = mono_riscv_emit_load(code, ainfo->reg, RISCV_FP, ainfo->offset, ainfo->slot_size);
+					break;
+				}
 				default:
 					g_print("can't process Storage type %d\n",ainfo->storage);
 					NOT_IMPLEMENTED;
