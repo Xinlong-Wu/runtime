@@ -1767,10 +1767,9 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 			case ArgOnStack:
 			case ArgVtypeOnStack:
 				/* These are in the parent frame */
-				g_assert(ainfo->offset > 0);
+				g_assert(ainfo->offset >= 0);
 				ins->inst_basereg = RISCV_FP;
 				ins->inst_offset = ainfo->offset;
-				NOT_IMPLEMENTED;
 				break;
 			case ArgVtypeInIReg:
 				ins->opcode = OP_REGOFFSET;
@@ -2929,12 +2928,8 @@ emit_move_args (MonoCompile *cfg, guint8 *code){
 						code = mono_riscv_emit_store(code, ainfo->reg + 1, ins->inst_basereg, ins->inst_offset + sizeof(host_mgreg_t), 0);
 					code = mono_riscv_emit_store(code, ainfo->reg, ins->inst_basereg, ins->inst_offset, 0);
 					break;
-				case ArgOnStack:{
-					NOT_IMPLEMENTED;
-					g_assert(ainfo->slot_size <= sizeof(host_mgreg_t));
-					code = mono_riscv_emit_load(code, ainfo->reg, RISCV_FP, ainfo->offset, ainfo->slot_size);
+				case ArgOnStack:
 					break;
-				}
 				default:
 					g_print("can't process Storage type %d\n",ainfo->storage);
 					NOT_IMPLEMENTED;
