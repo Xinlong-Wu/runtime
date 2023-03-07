@@ -1632,6 +1632,7 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_ICONV_TO_R8:
 		case OP_LCONV_TO_R8:
 #endif
+		case OP_IAND:
 		case OP_IAND_IMM:
 		case OP_LAND_IMM:
 		case OP_LNOT:
@@ -1641,6 +1642,7 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_ISHL_IMM:
 		case OP_LSHL_IMM:
 		case OP_ISHR_UN:
+		case OP_LSHR_UN:
 		case OP_ISHR_IMM:
 		case OP_LSHR_IMM:
 		case OP_ISHR_UN_IMM:
@@ -1923,6 +1925,7 @@ loop_start:
 			case OP_ISHR_IMM:
 			case OP_SHR_UN_IMM:
 			case OP_ISHR_UN:
+			case OP_LSHR_UN:
 			case OP_ISHR_UN_IMM:
 			case OP_ISHL_IMM:
 			case OP_LSHR_IMM:
