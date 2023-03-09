@@ -1959,6 +1959,7 @@ loop_start:
 			/* Atomic Ext */
 			case OP_MEMORY_BARRIER:
 			case OP_ATOMIC_STORE_I4:
+			case OP_ATOMIC_LOAD_U8:
 			case OP_ATOMIC_CAS_I4:
 			case OP_ATOMIC_CAS_I8:
 
@@ -3545,12 +3546,24 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				riscv_fence(code, RISCV_FENCE_MEM, RISCV_FENCE_MEM);
 				break;
 			case OP_ATOMIC_STORE_I4:{
+				// TODO: Check This
 				riscv_fence(code, RISCV_FENCE_MEM, RISCV_FENCE_W);
 				code = mono_riscv_emit_store (code, ins->sreg1, ins->inst_destbasereg, ins->inst_offset, 4);
 				if (ins->backend.memory_barrier_kind == MONO_MEMORY_BARRIER_SEQ)
 					NOT_IMPLEMENTED;
 				break;
 			}
+#ifdef TARGET_RISCV64
+			case OP_ATOMIC_LOAD_U8:{
+				// TODO: Check This
+				riscv_fence(code, RISCV_FENCE_MEM, RISCV_FENCE_MEM);
+				code = mono_riscv_emit_load(code, ins->dreg, ins->sreg1, ins->inst_offset, 8);
+				riscv_fence(code, RISCV_FENCE_R, RISCV_FENCE_MEM);
+				if (ins->backend.memory_barrier_kind == MONO_MEMORY_BARRIER_SEQ)
+					NOT_IMPLEMENTED;
+				break;
+			}
+#endif
 			case OP_ATOMIC_CAS_I4:{
 				g_assert(riscv_stdext_a);
 				/**
