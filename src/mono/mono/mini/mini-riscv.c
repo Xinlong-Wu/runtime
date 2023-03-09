@@ -2405,7 +2405,7 @@ loop_start:
 				ins->opcode = OP_SHR_UN_IMM;
 				ins->dreg = ins->dreg;
 				ins->sreg1 = temp->dreg;
-				temp->inst_imm = 48;
+				ins->inst_imm = 48;
 				break;
 			case OP_ICONV_TO_I2:
 				// slli    a0, a0, 48
@@ -2419,7 +2419,7 @@ loop_start:
 				ins->opcode = OP_SHR_IMM;
 				ins->dreg = ins->dreg;
 				ins->sreg1 = temp->dreg;
-				temp->inst_imm = 48;
+				ins->inst_imm = 48;
 				break;
 #ifdef TARGET_RISCV64:
 			case OP_SEXT_I4:{
