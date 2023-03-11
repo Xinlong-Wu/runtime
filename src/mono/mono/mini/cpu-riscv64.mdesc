@@ -48,6 +48,7 @@ throw: src1:i len:4
 rethrow: src1:i len:4
 
 br: len:4
+jump_table: dest:i len:4
 call: dest:a len:4 clob:c
 call_membase: dest:a src1:b len:8 clob:c
 voidcall: len:4 clob:c
@@ -89,9 +90,9 @@ atomic_exchange_i8: dest:i src1:i src2:i len:4
 move: dest:i src1:i len:4
 lmove: dest:i src1:i len:4
 
-iconst: dest:i len:16
-i8const: dest:i len:16
-r8const: dest:i len:16
+iconst: dest:i len:4
+i8const: dest:i len:4
+r8const: dest:i len:4
 int_add: dest:i src1:i src2:i len:4
 long_add: dest:i src1:i src2:i len:4
 int_sub: dest:i src1:i src2:i len:4

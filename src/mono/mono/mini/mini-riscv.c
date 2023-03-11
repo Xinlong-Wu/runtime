@@ -1901,6 +1901,7 @@ loop_start:
 			case OP_SEQ_POINT:
 			case OP_GC_SAFE_POINT:
 			case OP_BR:
+			case OP_JUMP_TABLE:
 			case OP_CALL:
 			case OP_FCALL:
 			case OP_LCALL:
@@ -3721,6 +3722,10 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_BR:
 				mono_add_patch_info_rel (cfg, offset, MONO_PATCH_INFO_BB, ins->inst_target_bb, MONO_R_RISCV_JAL);
 				riscv_jal (code, RISCV_ZERO, 0);
+				break;
+			case OP_JUMP_TABLE:
+				mono_add_patch_info_rel (cfg, offset, (MonoJumpInfoType)(gsize)ins->inst_i1, ins->inst_p0, MONO_R_RISCV_IMM);
+				code = mono_riscv_emit_imm(code, ins->dreg, 0xffffffff);
 				break;
 			case OP_RISCV_EXC_BNE:
 			case OP_RISCV_EXC_BEQ:
