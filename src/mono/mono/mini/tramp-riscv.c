@@ -592,25 +592,37 @@ mono_arch_create_rgctx_lazy_fetch_trampoline (guint32 slot, MonoTrampInfo **info
 gpointer
 mono_arch_create_general_rgctx_lazy_fetch_trampoline (MonoTrampInfo **info, gboolean aot)
 {
-	if (aot)
-		NOT_IMPLEMENTED;
+	guint8 *code, *buf;
+	int tramp_size;
+	MonoJumpInfo *ji = NULL;
+	GSList *unwind_ops = NULL;
 
-	guint8 *buf = mono_global_codeman_reserve (64), *code = buf;
+	g_assert (aot);
+
+	tramp_size = 32 * 2;
+
+	code = buf = mono_global_codeman_reserve (tramp_size);
+
+	mono_add_unwind_op_def_cfa (unwind_ops, code, buf, RISCV_SP, 0);
 
 	/*
 	 * The RGCTX register holds a pointer to a <slot, trampoline address> pair.
 	 * Load the trampoline address and branch to it. a0 holds the actual
 	 * (M)RGCTX or VTable.
 	 */
-	code = mono_riscv_emit_load (code, RISCV_T0, MONO_ARCH_RGCTX_REG, sizeof (target_mgreg_t), 0);
+	MINI_BEGIN_CODEGEN ();
+	code = mono_riscv_emit_load (code, RISCV_T0, MONO_ARCH_RGCTX_REG, sizeof (host_mgreg_t), 0);
+	/* The vtable/mrgctx is in A0 */
+	g_assert (MONO_ARCH_VTABLE_REG == RISCV_A0);
 	riscv_jalr (code, RISCV_ZERO, RISCV_T0, 0);
 
-	mono_arch_flush_icache (buf, code - buf);
+	g_assert (code - buf <= tramp_size);
+	MINI_END_CODEGEN (buf, code - buf, MONO_PROFILER_CODE_BUFFER_GENERICS_TRAMPOLINE, NULL);
 
 	if (info)
 		*info = mono_tramp_info_create ("rgctx_fetch_trampoline_general", buf, code - buf, NULL, NULL);
 
-	return buf;
+	return (gpointer)MINI_ADDR_TO_FTNPTR (buf);
 }
 
 /*

@@ -369,7 +369,7 @@ mono_arch_find_imt_method (host_mgreg_t *regs, guint8 *code)
 MonoVTable *
 mono_arch_find_static_call_vtable (host_mgreg_t *regs, guint8 *code)
 {
-	return (MonoVTable *) regs [MONO_ARCH_VTABLE_REG];
+	return (MonoVTable *) regs [MONO_ARCH_RGCTX_REG];
 }
 
 GSList*
@@ -1746,6 +1746,20 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 				offset += sizeof (host_mgreg_t);
 				cfg->ret->inst_offset = -offset;
 				break;
+			case ArgVtypeByRef:
+				/** 
+				 * Caller pass the address of return value by A0 as an implicit param.
+				 * It will be saved in the prolog
+				*/
+				cfg->vret_addr->opcode = OP_REGOFFSET;
+				cfg->vret_addr->inst_basereg = cfg->frame_reg;
+				offset += sizeof (host_mgreg_t);
+				cfg->vret_addr->inst_offset = -offset;
+				if (G_UNLIKELY (cfg->verbose_level > 1)) {
+					printf ("vret_addr =");
+					mono_print_ins (cfg->vret_addr);
+				}
+				break;
 			default:
 				g_print("Can't handle storage type %d\n",cinfo->ret.storage);
 				NOT_IMPLEMENTED;
@@ -3088,9 +3102,12 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 		code = emit_store_stack (code, MONO_ARCH_CALLEE_SAVED_REGS & cfg->used_int_regs, RISCV_FP, -cfg->arch.saved_gregs_offset, FALSE);
 	}
 	
-	/* Save return area addr received */
+	/* Save address of return value received in A0*/
 	if (cfg->vret_addr) {
-		NOT_IMPLEMENTED;
+		MonoInst *ins = cfg->vret_addr;
+
+		g_assert (ins->opcode == OP_REGOFFSET);
+		code = mono_riscv_emit_store (code, RISCV_A0, ins->inst_basereg, ins->inst_offset, 0);
 	}
 
 	/* Save mrgctx received in MONO_ARCH_RGCTX_REG */
@@ -3177,6 +3194,7 @@ mono_arch_emit_epilog (MonoCompile *cfg)
 	switch (cinfo->ret.storage) {
 		case ArgNone:
 		case ArgInIReg:
+		case ArgVtypeByRef:
 			break;
 		case ArgVtypeInIReg:{
 			MonoInst *ins = cfg->ret;
