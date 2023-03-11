@@ -291,7 +291,7 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 		*info = mono_tramp_info_create (tramp_name, buf, code - buf, ji, unwind_ops);
 	}
 
-	g_print("Emit trampoline of type %s, at 0x%lx to 0x%lx\n",tramp_name, buf, code);
+	// g_print("Emit trampoline of type %s, at 0x%lx to 0x%lx\n",tramp_name, buf, code);
 
 	return (guchar*)MINI_ADDR_TO_FTNPTR (buf);
 }
