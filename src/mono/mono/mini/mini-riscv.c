@@ -1976,6 +1976,9 @@ loop_start:
 			case OP_ATOMIC_LOAD_U8:
 			case OP_ATOMIC_CAS_I4:
 			case OP_ATOMIC_CAS_I8:
+#ifdef TARGET_RISCV64
+			case OP_ATOMIC_EXCHANGE_I8:
+#endif
 
 			/* Float Ext */
 			case OP_R8CONST:
@@ -3609,6 +3612,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				riscv_addi(code, ins->dreg, RISCV_T0, 0);
 				break;
 			}
+#ifdef TARGET_RISCV64
 			case OP_ATOMIC_CAS_I8:{
 				g_assert(riscv_stdext_a);
 				guint8 *loop_start, *branch_label;
@@ -3625,6 +3629,12 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				riscv_addi(code, ins->dreg, RISCV_T0, 0);
 				break;
 			}
+			case OP_ATOMIC_EXCHANGE_I8:{
+				g_assert(riscv_stdext_a);
+				riscv_amoswap_d(code, RISCV_ORDER_ALL, ins->dreg, ins->sreg2, ins->sreg1);
+				break;
+			}
+#endif
 
 			/* Float */
 			case OP_R8CONST:{
