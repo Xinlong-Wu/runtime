@@ -574,6 +574,10 @@ create_thunk (MonoCompile *cfg, guchar *code, const guchar *target){
 static void
 riscv_patch_full (MonoCompile *cfg, guint8 *code, guint8 *target, int relocation){
 	switch (relocation){
+		case MONO_R_RISCV_IMM:{
+			*(guint64 *)(code+4) = (guint64)target;
+			break;
+		}
 		case MONO_R_RISCV_JAL:{
 			gint32 inst = *(gint32 *) code;
 			gint32 rd = RISCV_BITS (inst, 7, 5);
