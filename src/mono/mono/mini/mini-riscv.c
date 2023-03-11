@@ -1972,6 +1972,7 @@ loop_start:
 			
 			/* Atomic Ext */
 			case OP_MEMORY_BARRIER:
+			case OP_ATOMIC_ADD_I4:
 			case OP_ATOMIC_STORE_I4:
 			case OP_ATOMIC_LOAD_U8:
 			case OP_ATOMIC_CAS_I4:
@@ -3565,6 +3566,9 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			/* Atomic */
 			case OP_MEMORY_BARRIER:
 				riscv_fence(code, RISCV_FENCE_MEM, RISCV_FENCE_MEM);
+				break;
+			case OP_ATOMIC_ADD_I4:
+				riscv_amoadd_w(code, RISCV_ORDER_ALL, ins->dreg, ins->sreg2, ins->sreg1);
 				break;
 			case OP_ATOMIC_STORE_I4:{
 				// TODO: Check This
