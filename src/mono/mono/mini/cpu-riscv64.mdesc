@@ -91,9 +91,9 @@ atomic_exchange_i8: dest:i src1:i src2:i len:4
 move: dest:i src1:i len:4
 lmove: dest:i src1:i len:4
 
-iconst: dest:i len:4
-i8const: dest:i len:4
-r8const: dest:i len:4
+iconst: dest:i len:16
+i8const: dest:i len:16
+r8const: dest:i len:16
 int_add: dest:i src1:i src2:i len:4
 long_add: dest:i src1:i src2:i len:4
 int_sub: dest:i src1:i src2:i len:4
@@ -120,6 +120,7 @@ int_and: dest:i src1:i src2:i len:4
 int_and_imm: dest:i src1:i len:4
 int_or: dest:i src1:i src2:i len:4
 int_xor: dest:i src1:i src2:i len:4
+int_xor_imm: dest:i src1:i len:4
 int_or_imm: dest:i src1:i len:4
 int_shl: dest:i src1:i src2:i len:4
 int_shl_imm: dest:i src1:i len:4
