@@ -1612,6 +1612,7 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_LSUB:
 		case OP_ISUB_IMM:
 		case OP_LSUB_IMM:
+		case OP_INEG:
 		case OP_LAND:
 		case OP_LOR:
 		case OP_IXOR:
@@ -1633,6 +1634,7 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_LCONV_TO_U:
 		case OP_LCONV_TO_I:
 		case OP_LCONV_TO_U1:
+		case OP_LCONV_TO_U2:
 		case OP_LCONV_TO_I4:
 		case OP_LCONV_TO_U4:
 		case OP_LCONV_TO_I8:
@@ -1647,6 +1649,7 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_LNOT:
 		case OP_IOR:
 		case OP_IOR_IMM:
+		case OP_LXOR:
 		case OP_ISHL:
 		case OP_ISHL_IMM:
 		case OP_LSHL_IMM:
@@ -1942,6 +1945,7 @@ loop_start:
 			case OP_XOR_IMM:
 			case OP_IXOR_IMM:
 			case OP_IXOR:
+			case OP_LXOR:
 			case OP_IOR:
 			case OP_IOR_IMM:
 			case OP_LOR:
@@ -2349,6 +2353,7 @@ loop_start:
 			}
 
 			/* Math */
+			case OP_INEG:
 			case OP_LNEG:
 				ins->opcode = OP_ISUB;
 				ins->sreg2 = ins->sreg1;
@@ -2440,6 +2445,7 @@ loop_start:
 				ins->inst_imm = 255;
 				break;
 			case OP_ICONV_TO_U2:
+			case OP_LCONV_TO_U2:
 				// slli    a0, a0, 48
         		// srli    a0, a0, 48
 				NEW_INS (cfg, ins, temp, OP_ICONST);
@@ -3510,6 +3516,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				riscv_andi(code, ins->dreg, ins->sreg1, ins->inst_imm);
 				break;
 			case OP_IXOR:
+			case OP_LXOR:
 				riscv_xor(code, ins->dreg, ins->sreg1, ins->sreg2);
 				break;
 			case OP_XOR_IMM:
