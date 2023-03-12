@@ -1624,6 +1624,8 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_ICONV_TO_U2:
 		case OP_FCONV_TO_I4:
 #ifdef TARGET_RISCV64
+		case OP_LNEG:
+
 		case OP_ICONV_TO_I4:
 		case OP_ICONV_TO_U4:
 		case OP_ICONV_TO_I8:
@@ -1669,8 +1671,10 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_LREM_UN:
 
 		case OP_ICONV_TO_OVF_U2:
+		case OP_LCONV_TO_OVF_I4_UN:
 
 		case OP_LADD_OVF_UN:
+		case OP_IMUL_OVF:
 		case OP_LMUL_OVF_UN_OOM:
 
 		case OP_FDIV:
@@ -2345,6 +2349,11 @@ loop_start:
 			}
 
 			/* Math */
+			case OP_LNEG:
+				ins->opcode = OP_ISUB;
+				ins->sreg2 = ins->sreg1;
+				ins->sreg1 = RISCV_ZERO;
+				break;
 			case OP_SUB_IMM:
 			case OP_ISUB_IMM:
 			case OP_LSUB_IMM:
