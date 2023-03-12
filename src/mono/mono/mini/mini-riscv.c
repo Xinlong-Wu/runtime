@@ -800,7 +800,7 @@ add_valuetype (CallInfo *cinfo, ArgInfo *ainfo, MonoType *t){
 		ainfo->storage = ArgVtypeInIReg;
 		ainfo->reg = cinfo->next_areg;
 		ainfo->size = sizeof(host_mgreg_t);
-		ainfo->is_regpair = TRUE;
+		ainfo->is_regpair = FALSE;
 
 		cinfo->next_areg += 1;
 	}
