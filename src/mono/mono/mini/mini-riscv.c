@@ -2002,9 +2002,11 @@ loop_start:
 			case OP_ATOMIC_STORE_U1:
 			case OP_ATOMIC_STORE_I4:
 			case OP_ATOMIC_STORE_U8:
+			case OP_ATOMIC_LOAD_I4:
 			case OP_ATOMIC_LOAD_U8:
 			case OP_ATOMIC_CAS_I4:
 			case OP_ATOMIC_CAS_I8:
+			case OP_ATOMIC_EXCHANGE_I4:
 #ifdef TARGET_RISCV64
 			case OP_ATOMIC_EXCHANGE_I8:
 #endif
@@ -3626,6 +3628,15 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_ATOMIC_ADD_I4:
 				riscv_amoadd_w(code, RISCV_ORDER_ALL, ins->dreg, ins->sreg2, ins->sreg1);
 				break;
+			case OP_ATOMIC_LOAD_I4:{
+				// TODO: Check This
+				riscv_fence(code, RISCV_FENCE_MEM, RISCV_FENCE_MEM);
+				code = mono_riscv_emit_load(code, ins->dreg, ins->sreg1, ins->inst_offset, 4);
+				riscv_fence(code, RISCV_FENCE_R, RISCV_FENCE_MEM);
+				if (ins->backend.memory_barrier_kind == MONO_MEMORY_BARRIER_SEQ)
+					NOT_IMPLEMENTED;
+				break;
+			}
 			case OP_ATOMIC_STORE_U1:{
 				// TODO: Check This
 				riscv_fence(code, RISCV_FENCE_MEM, RISCV_FENCE_W);
@@ -3642,25 +3653,6 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 					NOT_IMPLEMENTED;
 				break;
 			}
-#ifdef TARGET_RISCV64
-			case OP_ATOMIC_STORE_U8:{
-				// TODO: Check This
-				riscv_fence(code, RISCV_FENCE_MEM, RISCV_FENCE_W);
-				code = mono_riscv_emit_store (code, ins->sreg1, ins->inst_destbasereg, ins->inst_offset, 8);
-				if (ins->backend.memory_barrier_kind == MONO_MEMORY_BARRIER_SEQ)
-					NOT_IMPLEMENTED;
-				break;
-			}
-			case OP_ATOMIC_LOAD_U8:{
-				// TODO: Check This
-				riscv_fence(code, RISCV_FENCE_MEM, RISCV_FENCE_MEM);
-				code = mono_riscv_emit_load(code, ins->dreg, ins->sreg1, ins->inst_offset, 8);
-				riscv_fence(code, RISCV_FENCE_R, RISCV_FENCE_MEM);
-				if (ins->backend.memory_barrier_kind == MONO_MEMORY_BARRIER_SEQ)
-					NOT_IMPLEMENTED;
-				break;
-			}
-#endif
 			case OP_ATOMIC_CAS_I4:{
 				g_assert(riscv_stdext_a);
 				/**
@@ -3688,7 +3680,29 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				riscv_addi(code, ins->dreg, RISCV_T0, 0);
 				break;
 			}
+			case OP_ATOMIC_EXCHANGE_I4:{
+				g_assert(riscv_stdext_a);
+				riscv_amoswap_w(code, RISCV_ORDER_ALL, ins->dreg, ins->sreg2, ins->sreg1);
+				break;
+			}
 #ifdef TARGET_RISCV64
+			case OP_ATOMIC_STORE_U8:{
+				// TODO: Check This
+				riscv_fence(code, RISCV_FENCE_MEM, RISCV_FENCE_W);
+				code = mono_riscv_emit_store (code, ins->sreg1, ins->inst_destbasereg, ins->inst_offset, 8);
+				if (ins->backend.memory_barrier_kind == MONO_MEMORY_BARRIER_SEQ)
+					NOT_IMPLEMENTED;
+				break;
+			}
+			case OP_ATOMIC_LOAD_U8:{
+				// TODO: Check This
+				riscv_fence(code, RISCV_FENCE_MEM, RISCV_FENCE_MEM);
+				code = mono_riscv_emit_load(code, ins->dreg, ins->sreg1, ins->inst_offset, 8);
+				riscv_fence(code, RISCV_FENCE_R, RISCV_FENCE_MEM);
+				if (ins->backend.memory_barrier_kind == MONO_MEMORY_BARRIER_SEQ)
+					NOT_IMPLEMENTED;
+				break;
+			}
 			case OP_ATOMIC_CAS_I8:{
 				g_assert(riscv_stdext_a);
 				guint8 *loop_start, *branch_label;
