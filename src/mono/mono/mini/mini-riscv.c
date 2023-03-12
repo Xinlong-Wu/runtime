@@ -852,6 +852,12 @@ add_param (CallInfo *cinfo, ArgInfo *ainfo, MonoType *t){
 #endif
 			add_arg (cinfo, ainfo, 8, FALSE);
 			break;
+		case MONO_TYPE_R4:
+			if(riscv_stdext_f)
+				NOT_IMPLEMENTED;
+			else
+				add_arg (cinfo, ainfo, 4, FALSE);
+			break;
 		case MONO_TYPE_R8:
 			if(riscv_stdext_f)
 				NOT_IMPLEMENTED;
@@ -1135,9 +1141,11 @@ mono_arch_opcode_needs_emulation (MonoCompile *cfg, int opcode)
 	case OP_FDIV:
 	case OP_FMUL:
 	case OP_FCONV_TO_I4:
+	case OP_ICONV_TO_R4:
 #ifdef TARGET_RISCV64
 	case OP_ICONV_TO_R8:
 	case OP_LCONV_TO_R8:
+	case OP_FCONV_TO_R8:
 #endif
 		return !riscv_stdext_f;
 	default:
@@ -1624,6 +1632,7 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_ICONV_TO_I2:
 		case OP_ICONV_TO_U2:
 		case OP_FCONV_TO_I4:
+		case OP_ICONV_TO_R4:
 #ifdef TARGET_RISCV64
 		case OP_LNEG:
 
@@ -1642,6 +1651,7 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 
 		case OP_ICONV_TO_R8:
 		case OP_LCONV_TO_R8:
+		case OP_FCONV_TO_R8:
 #endif
 		case OP_IAND:
 		case OP_IAND_IMM:
