@@ -2156,6 +2156,19 @@ loop_start:
 							break;
 						}
 					}
+					if(ins->next->opcode == OP_ICNEQ){
+						if(RISCV_VALID_I_IMM(ins->inst_imm)){
+							// compare rs1, imm; lcneq rd => addi rs2, rs1, -imm; sltu rd, X0, rs2
+							ins->opcode = OP_ADD_IMM;
+							ins->dreg = mono_alloc_ireg (cfg);
+							ins->inst_imm = -ins->inst_imm;
+
+							ins->next->opcode = OP_RISCV_SLTU;
+							ins->next->sreg1 = RISCV_ZERO;
+							ins->next->sreg2 = ins->dreg;
+							break;
+						}
+					}
 					else if(ins->next->opcode == OP_LCGT_UN || ins->next->opcode == OP_ICGT_UN){
 						if(RISCV_VALID_I_IMM(ins->inst_imm + 1)){
 							// compare rs1, imm; lcgt_un rd => sltiu rd, rs1, imm; xori rd, rd, 1
