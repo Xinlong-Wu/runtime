@@ -61,7 +61,8 @@ fcall: dest:a len:4 clob:c
 
 # Note: in RV32, it shoule be 
 # lcall: dest:l ...
-lcall: dest:i len:16 clob:c
+lcall: dest:a len:16 clob:c
+lcall_membase: dest:a src1:b len:8 clob:c
 
 store_membase_reg: dest:b src1:i len:4
 storei1_membase_reg: dest:b src1:i len:4
