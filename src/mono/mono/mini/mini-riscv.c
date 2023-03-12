@@ -2338,6 +2338,15 @@ loop_start:
 						ins->next->sreg1 = ins->dreg;
 						ins->next->inst_imm = 1;
 					}
+					else if(ins->next->opcode == OP_ICNEQ){
+						// compare rs1, rs2; lcneq rd => xor rd, rs1, rs2; sltu rd, X0, rd
+						ins->opcode = OP_IXOR;
+						ins->dreg = ins->next->dreg;
+
+						ins->next->opcode = OP_RISCV_SLTU;
+						ins->next->sreg1 = RISCV_ZERO;
+						ins->next->sreg2 = ins->dreg;
+					}
 					else if(ins->next->opcode == OP_LCGT || ins->next->opcode == OP_ICGT){
 						ins->next->opcode = OP_RISCV_SLT;
 						ins->next->sreg1 = ins->sreg2;
