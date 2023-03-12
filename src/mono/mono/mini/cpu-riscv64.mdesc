@@ -125,9 +125,9 @@ shr_un_imm: dest:i src1:i len:4
 int_and: dest:i src1:i src2:i len:4
 int_and_imm: dest:i src1:i len:4
 int_or: dest:i src1:i src2:i len:4
+int_or_imm: dest:i src1:i len:4
 int_xor: dest:i src1:i src2:i len:4
 int_xor_imm: dest:i src1:i len:4
-int_or_imm: dest:i src1:i len:4
 int_shl: dest:i src1:i src2:i len:4
 int_shl_imm: dest:i src1:i len:4
 int_shr_un: dest:i src1:i src2:i len:4

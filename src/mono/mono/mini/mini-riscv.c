@@ -1957,9 +1957,7 @@ loop_start:
 			case OP_IXOR:
 			case OP_LXOR:
 			case OP_IOR:
-			case OP_IOR_IMM:
 			case OP_LOR:
-			case OP_LOR_IMM:
 			case OP_ISHL:
 			case OP_SHL_IMM:
 			case OP_LSHL_IMM:
@@ -2462,6 +2460,12 @@ loop_start:
 			case OP_LNOT:
 				ins->opcode = OP_XOR_IMM;
 				ins->inst_imm = -1;
+				break;
+			case OP_IOR_IMM:
+			case OP_LOR_IMM:
+				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_imm))){
+					mono_decompose_op_imm (cfg, bb, ins);
+				}
 				break;
 			case OP_ICONV_TO_U1:
 			case OP_LCONV_TO_U1:
@@ -3554,7 +3558,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				break;
 			case OP_IOR_IMM:
 			case OP_LOR_IMM:
-				riscv_ori(code, ins->dreg, ins->sreg1, ins->sreg2);
+				riscv_ori(code, ins->dreg, ins->sreg1, ins->inst_imm);
 				break;
 			case OP_RISCV_SLT:
 				riscv_slt(code, ins->dreg, ins->sreg1, ins->sreg2);
