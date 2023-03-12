@@ -51,6 +51,7 @@ br: len:4
 br_reg: src1:i len:4
 jump_table: dest:i len:16
 call: dest:a len:4 clob:c
+call_reg: dest:a src1:i len:4 clob:c
 call_membase: dest:a src1:b len:8 clob:c
 voidcall: len:4 clob:c
 voidcall_reg: src1:i len:4 clob:c

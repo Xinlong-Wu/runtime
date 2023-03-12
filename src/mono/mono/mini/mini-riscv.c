@@ -2030,6 +2030,7 @@ loop_start:
 					ins->opcode = OP_VOIDCALL_REG;
 				}
 				break;
+			case OP_CALL_REG:
 			case OP_VOIDCALL_REG:
 				break;
 			
@@ -3700,6 +3701,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				code = emit_move_return_value (cfg, code, ins);
 				break;
 			}
+			case OP_CALL_REG:
 			case OP_VOIDCALL_REG:
 				// use JALR x1, 0(src1)
 				riscv_jalr(code, RISCV_RA, ins->sreg1, 0);
