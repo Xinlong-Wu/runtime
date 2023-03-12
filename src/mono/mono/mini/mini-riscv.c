@@ -1656,6 +1656,7 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_IAND:
 		case OP_IAND_IMM:
 		case OP_LAND_IMM:
+		case OP_INOT:
 		case OP_LNOT:
 		case OP_IOR:
 		case OP_IOR_IMM:
@@ -1685,6 +1686,7 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 
 		case OP_ICONV_TO_OVF_U2:
 		case OP_LCONV_TO_OVF_I4_UN:
+		case OP_LCONV_TO_OVF_U4_UN:
 
 		case OP_LADD_OVF_UN:
 		case OP_IMUL_OVF:
@@ -2457,6 +2459,7 @@ loop_start:
 					mono_decompose_op_imm (cfg, bb, ins);
 				}
 				break;
+			case OP_INOT:
 			case OP_LNOT:
 				ins->opcode = OP_XOR_IMM;
 				ins->inst_imm = -1;
