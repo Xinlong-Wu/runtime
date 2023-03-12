@@ -2667,7 +2667,7 @@ mono_riscv_emit_nop (guint8 *code){
 guint8 *
 mono_riscv_emit_load (guint8 *code, int rd, int rs1, gint32 imm, int length)
 {
-	if (!RISCV_VALID_S_IMM (imm)){
+	if (!RISCV_VALID_I_IMM (imm)){
 		code = mono_riscv_emit_imm (code, RISCV_T6, imm);
 		riscv_add (code, RISCV_T6, rs1, RISCV_T6);
 		rs1 = RISCV_T6;
@@ -3464,20 +3464,28 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				code = mono_riscv_emit_load(code, ins->dreg, ins->sreg1, ins->inst_offset, 0);
 				break;
 			case OP_LOADI1_MEMBASE:
-			case OP_LOADU1_MEMBASE:
 				code = mono_riscv_emit_load(code, ins->dreg, ins->sreg1, ins->inst_offset, 1);
 				break;
+			case OP_LOADU1_MEMBASE:
+				riscv_lbu(code, ins->dreg, ins->sreg1, ins->inst_offset);
+				break;
 			case OP_LOADI2_MEMBASE:
-			case OP_LOADU2_MEMBASE:
 				code = mono_riscv_emit_load(code, ins->dreg, ins->sreg1, ins->inst_offset, 2);
 				break;
-			case OP_LOADU4_MEMBASE:
+			case OP_LOADU2_MEMBASE:
+				riscv_lhu(code, ins->dreg, ins->sreg1, ins->inst_offset);
+				break;
 			case OP_LOADI4_MEMBASE:
 				code = mono_riscv_emit_load(code, ins->dreg, ins->sreg1, ins->inst_offset, 4);
+				break;
+#ifdef TARGET_RISCV64
+			case OP_LOADU4_MEMBASE:
+				riscv_lwu(code, ins->dreg, ins->sreg1, ins->inst_offset);
 				break;
 			case OP_LOADI8_MEMBASE:
 				code = mono_riscv_emit_load(code, ins->dreg, ins->sreg1, ins->inst_offset, 8);
 				break;
+#endif
 			case OP_STORE_MEMBASE_REG:
 				code = mono_riscv_emit_store(code, ins->sreg1, ins->dreg, ins->inst_offset, 0);
 				break;
