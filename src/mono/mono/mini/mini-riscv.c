@@ -2168,8 +2168,12 @@ loop_start:
 						}
 					}
 				}
-				else
-					g_assert_not_reached();
+				else{
+					// why it will reach this?
+					NULLIFY_INS (ins);
+					break;
+				}
+
 
 				if(ins->inst_imm == 0){
 					ins->sreg2 = RISCV_ZERO;
