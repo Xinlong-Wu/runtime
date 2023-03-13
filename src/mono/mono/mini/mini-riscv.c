@@ -2014,6 +2014,7 @@ loop_start:
 			case OP_LOCALLOC:
 			case OP_ICONV_TO_R4:
 			case OP_ICONV_TO_R8:
+			case OP_FCONV_TO_I4:
 			
 			/* skip dummy IL */
 			case OP_NOT_REACHED:
@@ -3831,6 +3832,14 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_ICONV_TO_R8:{
 				g_assert(riscv_stdext_d);
 				riscv_fcvt_d_w (code, ins->dreg, ins->sreg1);
+				break;
+			}
+			case OP_FCONV_TO_I4:{
+				g_assert(riscv_stdext_f || riscv_stdext_d);
+				if(riscv_stdext_d)
+					riscv_fcvt_w_d(code, RISCV_ROUND_DY, ins->dreg, ins->sreg1);
+				else
+					riscv_fcvt_w_s(code, RISCV_ROUND_DY, ins->dreg, ins->sreg1);
 				break;
 			}
 			case OP_STORER8_MEMBASE_REG:{
