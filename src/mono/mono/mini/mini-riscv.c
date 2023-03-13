@@ -1633,6 +1633,9 @@ mono_arch_emit_setret (MonoCompile *cfg, MonoMethod *method, MonoInst *val)
 		case ArgInIReg:
 			MONO_EMIT_NEW_UNALU (cfg, OP_MOVE, cfg->ret->dreg, val->dreg);
 			break;
+		case ArgInFReg:
+			MONO_EMIT_NEW_UNALU (cfg, OP_FMOVE, cfg->ret->dreg, val->dreg);
+			break;
 		default:
 			g_print("can't process Storage type %d\n",cinfo->ret.storage);
 			NOT_IMPLEMENTED;
@@ -1790,6 +1793,7 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 			case ArgNone:
 				break;
 			case ArgInIReg:
+			case ArgInFReg:
 				cfg->ret->opcode = OP_REGVAR;
 				cfg->ret->inst_c0 = cinfo->ret.reg;
 				cfg->ret->dreg = cinfo->ret.reg;
@@ -3079,6 +3083,9 @@ emit_move_args (MonoCompile *cfg, guint8 *code){
 						mono_add_var_location (cfg, ins, FALSE, ins->inst_basereg, ins->inst_offset, code - cfg->native_code, 0);
 					}
 					break;
+				case ArgInFReg:
+					code = mono_riscv_emit_fstore (code, ainfo->reg, ins->inst_basereg, ins->inst_offset, FALSE);
+					break;
 				case ArgVtypeInIReg:
 					if(ainfo->is_regpair)
 						code = mono_riscv_emit_store(code, ainfo->reg + 1, ins->inst_basereg, ins->inst_offset + sizeof(host_mgreg_t), 0);
@@ -3313,6 +3320,8 @@ mono_arch_emit_epilog (MonoCompile *cfg)
 	switch (cinfo->ret.storage) {
 		case ArgNone:
 		case ArgInIReg:
+		case ArgInFReg:
+		case ArgInFRegR4:
 		case ArgVtypeByRef:
 			break;
 		case ArgVtypeInIReg:{
