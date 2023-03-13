@@ -39,7 +39,7 @@ mono_arch_init (void)
 	riscv_stdext_a = mono_hwcap_riscv_has_stdext_a;
 	// TODO: skip float and compress inst for now
 	riscv_stdext_c = FALSE;
-	riscv_stdext_d = FALSE;
+	riscv_stdext_d = mono_hwcap_riscv_has_stdext_d;
 	riscv_stdext_f = FALSE;
 	riscv_stdext_m = mono_hwcap_riscv_has_stdext_m;
 
@@ -853,16 +853,16 @@ add_param (CallInfo *cinfo, ArgInfo *ainfo, MonoType *t){
 			add_arg (cinfo, ainfo, 8, FALSE);
 			break;
 		case MONO_TYPE_R4:
-			if(riscv_stdext_f)
-				NOT_IMPLEMENTED;
-			else
+			if(mono_arch_is_soft_float())
 				add_arg (cinfo, ainfo, 4, FALSE);
+			else
+				NOT_IMPLEMENTED;
 			break;
 		case MONO_TYPE_R8:
-			if(riscv_stdext_f)
-				NOT_IMPLEMENTED;
-			else
+			if(mono_arch_is_soft_float())
 				add_arg (cinfo, ainfo, 8, FALSE);
+			else
+				NOT_IMPLEMENTED;
 			break;
 
 		case MONO_TYPE_GENERICINST:{
@@ -1147,7 +1147,7 @@ mono_arch_opcode_needs_emulation (MonoCompile *cfg, int opcode)
 	case OP_LCONV_TO_R8:
 	case OP_FCONV_TO_R8:
 #endif
-		return !riscv_stdext_f;
+		return !mono_arch_is_soft_float();
 	default:
 		return TRUE;
 	}
@@ -2640,10 +2640,10 @@ guint8 *
 mono_riscv_emit_float (guint8 *code, int rd, gsize r_imm){
 
 	if(r_imm == 0){
-		if(riscv_stdext_f)
-			NOT_IMPLEMENTED;
-		else
+		if(mono_arch_is_soft_float())
 			riscv_addi (code, rd, RISCV_ZERO, 0);
+		else
+			NOT_IMPLEMENTED;
 
 		return code;
 	}
@@ -2652,14 +2652,14 @@ mono_riscv_emit_float (guint8 *code, int rd, gsize r_imm){
 	*(guint64 *) code = r_imm;
 	code += sizeof (guint64);
 
-	if(riscv_stdext_f)
-		NOT_IMPLEMENTED;
-	else
+	if(mono_arch_is_soft_float())
 #ifdef TARGET_RISCV64
 		riscv_ld (code, rd, rd, 0);
 #else
 		riscv_lw (code, rd, rd, 0);
 #endif
+	else
+		NOT_IMPLEMENTED;
 
 	return code;
 }
@@ -3752,17 +3752,17 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				break;
 			}
 			case OP_STORER8_MEMBASE_REG:{
-				if(riscv_stdext_f)
-					NOT_IMPLEMENTED;
-				else
+				if(mono_arch_is_soft_float())
 					code = mono_riscv_emit_store(code, ins->sreg1, ins->dreg, ins->inst_offset, 8);
+				else
+					NOT_IMPLEMENTED;
 				break;
 			}
 			case OP_LOADR8_MEMBASE:{
-				if(riscv_stdext_f)
-					NOT_IMPLEMENTED;
-				else
+				if(mono_arch_is_soft_float())
 					code = mono_riscv_emit_load(code, ins->dreg, ins->sreg1, ins->inst_offset, 8);
+				else
+					NOT_IMPLEMENTED;
 				break;
 			}
 

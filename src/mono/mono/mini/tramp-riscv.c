@@ -85,7 +85,7 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 	gregs_offset = offset;
 	/* fregs */
 	/* Only have to save the argument regs */
-	if(riscv_stdext_d || riscv_stdext_f){
+	if(!mono_arch_is_soft_float()){
 		num_fregs = 32;
 		offset += num_fregs * sizeof(host_mgreg_t);
 		fregs_offset = offset;
@@ -124,7 +124,7 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 	code = emit_store_regarray (code, gregs_regset, RISCV_FP, -gregs_offset, FALSE);
 
 	/* Save fregs */
-	if(riscv_stdext_d || riscv_stdext_f){
+	if(!mono_arch_is_soft_float()){
 		code = emit_store_regarray (code, (0xffffffff), RISCV_FP, -fregs_offset, TRUE);
 	}
 
@@ -239,7 +239,7 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 	/* Only have to load the argument MONO_ARCH_CALLEE_REGS (a0..a7) and the rgctx reg */
 	code = emit_load_regarray(code, (MONO_ARCH_ARGUMENT_REGS | (1 << RISCV_RA) | (1 << MONO_ARCH_RGCTX_REG)), RISCV_FP, -gregs_offset, FALSE);
 	/* Restore fregs */
-	if(riscv_stdext_d || riscv_stdext_f){
+	if(!mono_arch_is_soft_float()){
 		code = emit_load_regarray (code, (0xffffffff), RISCV_FP, -fregs_offset, TRUE);
 	}
 

@@ -119,7 +119,6 @@ extern gboolean riscv_stdext_a, riscv_stdext_b, riscv_stdext_c,
 // TODO: remove following def
 #define MONO_ARCH_EMULATE_MUL_DIV           (1)
 #define MONO_ARCH_EMULATE_FREM              (1)
-#define MONO_ARCH_SOFT_FLOAT_FALLBACK		(1)
 
 #ifdef TARGET_RISCV64
 
