@@ -1660,6 +1660,7 @@ mono_arch_decompose_opts (MonoCompile *cfg, MonoInst *ins)
 		case OP_LNOT:
 		case OP_IOR:
 		case OP_IOR_IMM:
+		case OP_LOR_IMM:
 		case OP_LXOR:
 		case OP_ISHL:
 		case OP_ISHL_IMM:
