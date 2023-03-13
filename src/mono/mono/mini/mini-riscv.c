@@ -1983,6 +1983,7 @@ loop_start:
 			case OP_LSUB:
 			case OP_IADD:
 			case OP_LADD:
+			case OP_FMUL:
 			case OP_LDIV:
 			case OP_LDIV_UN:
 			case OP_IREM:
@@ -3597,6 +3598,13 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				g_assert(riscv_stdext_m);
 				riscv_mul(code, ins->dreg, ins->sreg1, ins->sreg2);
 				break;
+			case OP_FMUL:
+				g_assert(riscv_stdext_f || riscv_stdext_d);
+				if(riscv_stdext_d)
+					riscv_fmul_d (code, RISCV_ROUND_DY, ins->dreg, ins->sreg1, ins->sreg2);
+				else
+					riscv_fmul_s (code, RISCV_ROUND_DY, ins->dreg, ins->sreg1, ins->sreg2);
+				break;
 			case OP_LDIV:
 				g_assert(riscv_stdext_m);
 				code = mono_riscv_emit_branch_exc(cfg, code, OP_RISCV_EXC_BEQ, ins->sreg2, RISCV_ZERO, "DivideByZeroException");
@@ -3816,10 +3824,12 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				break;
 			}
 			case OP_ICONV_TO_R4:{
+				g_assert(riscv_stdext_f);
 				riscv_fcvt_s_w (code, RISCV_ROUND_DY, ins->dreg, ins->sreg1);
 				break;
 			}
 			case OP_ICONV_TO_R8:{
+				g_assert(riscv_stdext_d);
 				riscv_fcvt_d_w (code, ins->dreg, ins->sreg1);
 				break;
 			}
