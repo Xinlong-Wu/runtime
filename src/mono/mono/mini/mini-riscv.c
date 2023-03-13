@@ -2670,7 +2670,7 @@ mono_riscv_emit_imm (guint8 *code, int rd, gsize imm)
 }
 
 guint8 *
-mono_riscv_emit_float (guint8 *code, int rd, gsize f_imm){
+mono_riscv_emit_float_imm (guint8 *code, int rd, gsize f_imm, gboolean isSingle){
 
 	if(f_imm == 0){
 		if(mono_arch_is_soft_float())
@@ -2681,18 +2681,21 @@ mono_riscv_emit_float (guint8 *code, int rd, gsize f_imm){
 		return code;
 	}
 
-	riscv_jal (code, rd, sizeof (guint64) + 4);
+	riscv_jal (code, RISCV_T0, sizeof (guint64) + 4);
 	*(guint64 *) code = f_imm;
 	code += sizeof (guint64);
 
 	if(mono_arch_is_soft_float())
 #ifdef TARGET_RISCV64
-		riscv_ld (code, rd, rd, 0);
+		riscv_ld (code, rd, RISCV_T0, 0);
 #else
-		riscv_lw (code, rd, rd, 0);
+		riscv_lw (code, rd, RISCV_T0, 0);
 #endif
 	else
-		NOT_IMPLEMENTED;
+		if(isSingle)
+			riscv_flw (code, rd, RISCV_T0, 0);
+		else
+			riscv_fld (code, rd, RISCV_T0, 0);
 
 	return code;
 }
@@ -3798,7 +3801,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 
 			/* Float */
 			case OP_R8CONST:{
-				code = mono_riscv_emit_float(code, ins->dreg, *(guint64*)ins->inst_p0);
+				code = mono_riscv_emit_float_imm(code, ins->dreg, *(guint64*)ins->inst_p0, FALSE);
 				break;
 			}
 			case OP_STORER8_MEMBASE_REG:{
