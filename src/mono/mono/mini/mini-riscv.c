@@ -2011,6 +2011,8 @@ loop_start:
 			case OP_LSHR_IMM:
 			case OP_LSHR_UN_IMM:
 			case OP_LOCALLOC:
+			case OP_ICONV_TO_R4:
+			case OP_ICONV_TO_R8:
 			
 			/* skip dummy IL */
 			case OP_NOT_REACHED:
@@ -3811,6 +3813,14 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			/* Float */
 			case OP_R8CONST:{
 				code = mono_riscv_emit_float_imm(code, ins->dreg, *(guint64*)ins->inst_p0, FALSE);
+				break;
+			}
+			case OP_ICONV_TO_R4:{
+				riscv_fcvt_s_w (code, RISCV_ROUND_DY, ins->dreg, ins->sreg1);
+				break;
+			}
+			case OP_ICONV_TO_R8:{
+				riscv_fcvt_d_w (code, ins->dreg, ins->sreg1);
 				break;
 			}
 			case OP_STORER8_MEMBASE_REG:{
