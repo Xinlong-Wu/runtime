@@ -90,7 +90,7 @@ extern gboolean riscv_stdext_a, riscv_stdext_b, riscv_stdext_c,
 #ifdef TARGET_RISCV64
 
 #define MONO_ARCH_INST_FIXED_REG(desc) \
-	((desc) == 'a' || (mono_arch_is_soft_float () && (desc) == 'f') ? RISCV_A0 : -1)
+	((desc) == 'a' || ((desc) == 'f') ? RISCV_A0 : -1)
 #define MONO_ARCH_INST_IS_REGPAIR(desc) \
 	(FALSE)
 #define MONO_ARCH_INST_REGPAIR_REG2(desc, hreg1) \
@@ -229,6 +229,11 @@ typedef enum {
 	ArgInIReg = 0x01,
 	ArgOnStack,
 	ArgInFReg,
+#ifdef TARGET_RISCV64
+	ArgInFRegR4,
+#endif
+	ArgOnStackR4,
+	ArgOnStackR8,
 	ArgStructByVal,
 	ArgStructByAddr,
 	/*
@@ -257,7 +262,7 @@ typedef struct {
 
 struct CallInfo {
 	int nargs;
-	guint32 next_areg;
+	guint32 next_arg, next_farg;
 	gboolean pinvoke, vararg;
 	guint32 stack_usage;
 	guint32 struct_ret;
@@ -288,13 +293,13 @@ __attribute__ ((warn_unused_result)) guint8 *
 mono_riscv_emit_load (guint8 *code, int rd, int rs1, gint32 imm, int length);
 
 __attribute__ ((warn_unused_result)) guint8 *
-mono_riscv_emit_fload (guint8 *code, int rd, int rs1, gint32 imm);
+mono_riscv_emit_fload (guint8 *code, int rd, int rs1, gint32 imm, gboolean isSingle);
 
 __attribute__ ((warn_unused_result)) guint8 *
-mono_riscv_emit_store (guint8 *code, int rs1, int rs2, gint32 imm, int length);
+mono_riscv_emit_store (guint8 *code, int rs2, int rs1, gint32 imm, int length);
 
 __attribute__ ((warn_unused_result)) guint8 *
-mono_riscv_emit_fstore (guint8 *code, int rd, int rs1, gint32 imm);
+mono_riscv_emit_fstore (guint8 *code, int rs2, int rs1, gint32 imm, gboolean isSingle);
 
 __attribute__ ((__warn_unused_result__)) guint8*
 mono_riscv_emit_destroy_frame (guint8 *code);
@@ -309,7 +314,7 @@ __attribute__ ((__warn_unused_result__)) guint8*
 emit_store_regarray (guint8 *code, guint64 regs, int basereg, int offset, MonoBoolean isFloat);
 
 __attribute__ ((__warn_unused_result__)) guint8*
-emit_load_regarray (guint8 *code, guint64 regs, int basereg, int offset, MonoBoolean isFloat);
+emit_load_regarray (guint8 *code, guint64 regs, int basereg, int offset, gboolean isFloat);
 
 void
 mono_riscv_patch (guint8 *code, guint8 *target, int relocation);

@@ -24,8 +24,10 @@ mono_hwcap_arch_init (void)
 			mono_hwcap_riscv_has_stdext_c = TRUE;
 
 		// COMPAT_HWCAP_ISA_D
-		if (hwcap & (1 << ('D' - 'A')))
+		if (hwcap & (1 << ('D' - 'A'))){
 			mono_hwcap_riscv_has_stdext_d = TRUE;
+			mono_hwcap_riscv_has_stdext_f = TRUE;
+		}
 
 		// COMPAT_HWCAP_ISA_F
 		if (hwcap & (1 << ('F' - 'A')))

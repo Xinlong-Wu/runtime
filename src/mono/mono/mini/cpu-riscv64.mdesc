@@ -58,7 +58,7 @@ voidcall_reg: src1:i len:4 clob:c
 voidcall_membase: src1:b len:8 clob:c
 vcall2: len:16 clob:c
 vcall2_membase: src1:b len:20 clob:c
-fcall: dest:a len:4 clob:c
+fcall: dest:f len:8 clob:c
 
 # Note: in RV32, it shoule be 
 # lcall: dest:l ...
@@ -70,7 +70,7 @@ storei1_membase_reg: dest:b src1:i len:4
 storei2_membase_reg: dest:b src1:i len:4
 storei4_membase_reg: dest:b src1:i len:4
 storei8_membase_reg: dest:b src1:i len:4
-storer8_membase_reg: dest:b src1:i len:4
+storer8_membase_reg: dest:b src1:f len:4
 
 load_membase: dest:i src1:b len:24
 loadu1_membase: dest:i src1:b len:16
@@ -80,7 +80,7 @@ loadi2_membase: dest:i src1:b len:16
 loadu4_membase: dest:i src1:b len:16
 loadi4_membase: dest:i src1:b len:16
 loadi8_membase: dest:i src1:b len:16
-loadr8_membase: dest:i src1:b len:16
+loadr8_membase: dest:f src1:b len:16
 
 memory_barrier: len:4
 atomic_add_i4: dest:i src1:i src2:i len:4
@@ -97,10 +97,11 @@ atomic_exchange_i8: dest:i src1:i src2:i len:4
 
 move: dest:i src1:i len:4
 lmove: dest:i src1:i len:4
+fmove: dest:f src1:f len:4
 
 iconst: dest:i len:16
 i8const: dest:i len:16
-r8const: dest:i len:16
+r8const: dest:f len:16
 int_add: dest:i src1:i src2:i len:4
 long_add: dest:i src1:i src2:i len:4
 int_sub: dest:i src1:i src2:i len:4

@@ -1832,7 +1832,7 @@ mono_local_regalloc (MonoCompile *cfg, MonoBasicBlock *bb)
 
 					sreg_masks [0] &= ~(regmask (hreg));
 
-					DEBUG (printf ("\tassigned arg reg %s to R%d\n", mono_arch_regname (hreg), reg));
+					DEBUG (printf ("\tassigned arg ireg %s to R%d\n", mono_arch_regname (hreg), reg));
 
 					list = g_slist_next (list);
 				}
@@ -1850,7 +1850,7 @@ mono_local_regalloc (MonoCompile *cfg, MonoBasicBlock *bb)
 
 					assign_reg (cfg, rs, reg, hreg, 1);
 
-					DEBUG (printf ("\tassigned arg reg %s to R%d\n", mono_regname_full (hreg, 1), reg));
+					DEBUG (printf ("\tassigned arg freg %s to R%d\n", mono_regname_full (hreg, 1), reg));
 
 					list = g_slist_next (list);
 				}

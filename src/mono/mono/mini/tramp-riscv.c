@@ -833,7 +833,7 @@ mono_arch_get_interp_to_native_trampoline (MonoTrampInfo **info)
 	/* set all floating registers to CallContext  */
 	for (i = 0; i < RISCV_N_FREGS; i++){
 		if(MONO_ARCH_IS_ARGUMENT_FREGS(i))
-			code = mono_riscv_emit_fload (code, i, RISCV_T0, MONO_STRUCT_OFFSET (CallContext, fregs) + i * sizeof (double));
+			code = mono_riscv_emit_fload (code, i, RISCV_T0, MONO_STRUCT_OFFSET (CallContext, fregs) + i * sizeof (double), TRUE);
 	}
 
 	/* load target addr */
@@ -854,7 +854,7 @@ mono_arch_get_interp_to_native_trampoline (MonoTrampInfo **info)
 	/* set all floating registers to CallContext  */
 	for (i = 0; i < RISCV_N_FREGS; i++){
 		if(MONO_ARCH_IS_ARGUMENT_FREGS(i))
-			code = mono_riscv_emit_fstore (code, i, RISCV_T0, MONO_STRUCT_OFFSET (CallContext, fregs) + i * sizeof (double));
+			code = mono_riscv_emit_fstore (code, i, RISCV_T0, MONO_STRUCT_OFFSET (CallContext, fregs) + i * sizeof (double), FALSE);
 	}
 
 	// restore a0
