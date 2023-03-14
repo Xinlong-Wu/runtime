@@ -100,6 +100,7 @@ atomic_exchange_i8: dest:i src1:i src2:i len:4
 move: dest:i src1:i len:4
 lmove: dest:i src1:i len:4
 fmove: dest:f src1:f len:4
+rmove: dest:f src1:f len:4
 
 iconst: dest:i len:16
 i8const: dest:i len:16

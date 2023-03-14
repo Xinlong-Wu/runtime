@@ -876,7 +876,7 @@ add_param (CallInfo *cinfo, ArgInfo *ainfo, MonoType *t){
 			break;
 		case MONO_TYPE_R4:
 			if(mono_arch_is_soft_float())
-				add_arg (cinfo, ainfo, 4, FALSE);
+				add_arg (cinfo, ainfo, 4, TRUE);
 			else
 				add_farg (cinfo, ainfo, TRUE);
 			break;
@@ -1345,16 +1345,11 @@ add_outarg_reg (MonoCompile *cfg, MonoCallInst *call, ArgStorage storage, int re
 			mono_call_inst_add_outarg_reg (cfg, call, ins->dreg, reg, TRUE);
 			break;
 		case ArgInFRegR4:
-#ifdef TARGET_RISCV64
-			// r4 convert to r8
-			MONO_INST_NEW (cfg, ins, OP_RCONV_TO_R8);
-			ins->dreg = mono_alloc_ireg_copy (cfg, arg->dreg);
+			MONO_INST_NEW (cfg, ins, OP_RMOVE);
+			ins->dreg = mono_alloc_freg (cfg);
 			ins->sreg1 = arg->dreg;
 			MONO_ADD_INS (cfg->cbb, ins);
 			mono_call_inst_add_outarg_reg (cfg, call, ins->dreg, reg, TRUE);
-#else
-			NOT_IMPLEMENTED;
-#endif
 			break;
 	}
 }
@@ -1991,6 +1986,7 @@ loop_start:
 			case OP_I8CONST:
 			case OP_ICONST:
 			case OP_MOVE:
+			case OP_RMOVE:
 			case OP_FMOVE:
 			case OP_LMOVE:
 			case OP_ISUB:
@@ -3582,6 +3578,11 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				// mv ra, a1 -> addi ra, a1, 0
 				riscv_addi(code, ins->dreg, ins->sreg1, 0);
 				break;
+			// r4 move
+			case OP_RMOVE:
+				g_assert(riscv_stdext_f);
+				riscv_fsgnj_s(code, ins->dreg, ins->sreg1, ins->sreg1);
+				break;
 			case OP_FMOVE:
 				// fmv.{s|d} rd, rs1 -> fsgnj.{s|d} rd, rs1, rs1
 				g_assert(riscv_stdext_d || riscv_stdext_f);
@@ -3875,7 +3876,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			/* Float */
 			case OP_R4CONST:
 			case OP_R8CONST:{
-				code = mono_riscv_emit_float_imm(code, ins->dreg, *(guint64*)ins->inst_p0, FALSE);
+				code = mono_riscv_emit_float_imm(code, ins->dreg, *(guint64*)ins->inst_p0, ins->opcode == OP_R4CONST);
 				break;
 			}
 			case OP_ICONV_TO_R4:{
