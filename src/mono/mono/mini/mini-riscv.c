@@ -2733,7 +2733,10 @@ mono_riscv_emit_float_imm (guint8 *code, int rd, gsize f_imm, gboolean isSingle)
 		if(mono_arch_is_soft_float())
 			riscv_addi (code, rd, RISCV_ZERO, 0);
 		else
-			NOT_IMPLEMENTED;
+			if(isSingle)
+				riscv_fmv_w_x(code, rd, RISCV_ZERO);
+			else
+				riscv_fmv_d_x(code, rd, RISCV_ZERO);
 
 		return code;
 	}
