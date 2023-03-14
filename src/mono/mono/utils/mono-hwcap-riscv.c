@@ -26,7 +26,6 @@ mono_hwcap_arch_init (void)
 		// COMPAT_HWCAP_ISA_D
 		if (hwcap & (1 << ('D' - 'A'))){
 			mono_hwcap_riscv_has_stdext_d = TRUE;
-			mono_hwcap_riscv_has_stdext_f = TRUE;
 		}
 
 		// COMPAT_HWCAP_ISA_F

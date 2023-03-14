@@ -95,7 +95,6 @@ mono_arch_set_target (char *mtriple)
 			case 'D':
 			case 'd':
 				riscv_stdext_d = TRUE;
-				riscv_stdext_f = TRUE;
 				break;
 			case 'F':
 			case 'f':
@@ -313,11 +312,9 @@ mono_arch_opcode_supported (int opcode)
 		return riscv_stdext_a;
 	case OP_ATOMIC_LOAD_R4:
 	case OP_ATOMIC_STORE_R4:
-#ifdef TARGET_RISCV64
 		return riscv_stdext_a && (riscv_stdext_f);
 	case OP_ATOMIC_LOAD_R8:
 	case OP_ATOMIC_STORE_R8:
-#endif
 		return riscv_stdext_a && (riscv_stdext_d);
 	default:
 		return FALSE;
