@@ -80,6 +80,7 @@ loadi2_membase: dest:i src1:b len:16
 loadu4_membase: dest:i src1:b len:16
 loadi4_membase: dest:i src1:b len:16
 loadi8_membase: dest:i src1:b len:16
+loadr4_membase: dest:f src1:b len:16
 loadr8_membase: dest:f src1:b len:16
 
 memory_barrier: len:4

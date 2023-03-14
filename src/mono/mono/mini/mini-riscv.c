@@ -2211,6 +2211,7 @@ loop_start:
 #ifdef TARGET_RISCV64
 			case OP_LOADI8_MEMBASE:
 #endif		
+			case OP_LOADR4_MEMBASE:
 			case OP_LOADR8_MEMBASE:
 			case OP_LOAD_MEMBASE:
 				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_imm))){
@@ -3907,6 +3908,13 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 					code = mono_riscv_emit_store(code, ins->sreg1, ins->dreg, ins->inst_offset, 8);
 				else
 					code = mono_riscv_emit_fstore(code, ins->sreg1, ins->dreg, ins->inst_offset, FALSE);
+				break;
+			}
+			case OP_LOADR4_MEMBASE:{
+				if(mono_arch_is_soft_float())
+					code = mono_riscv_emit_load(code, ins->dreg, ins->sreg1, ins->inst_offset, 4);
+				else
+					code = mono_riscv_emit_fload(code, ins->dreg, ins->sreg1, ins->inst_offset, TRUE);
 				break;
 			}
 			case OP_LOADR8_MEMBASE:{
