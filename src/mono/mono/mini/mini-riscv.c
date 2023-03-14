@@ -2074,15 +2074,22 @@ loop_start:
 			case OP_FCONV_TO_I4:
 			case OP_FCEQ:
 			case OP_FCLT:
+			case OP_FCGT:
 			case OP_FCGT_UN:
-#ifdef TARGET_RISCV64
-			case OP_STORER8_MEMBASE_REG:
-#endif
 				break;
 			case OP_FCOMPARE:{
 				if (ins->next){
 					if(ins->next->opcode == OP_FBLT || ins->next->opcode == OP_FBLT_UN){
 						ins->opcode = OP_FCLT;
+						ins->dreg = mono_alloc_ireg (cfg);
+
+						ins->next->opcode = OP_RISCV_BNE;
+						ins->next->sreg1 = ins->dreg;
+						ins->next->sreg2 = RISCV_ZERO;
+					}
+					else if(ins->next->opcode == OP_FBGT || ins->next->opcode == OP_FBGT_UN){
+						// fcmp rd, rs1, rs2; fbgt rd -> fcgt rd, rs1, rs2; bne rd, X0
+						ins->opcode = OP_FCGT;
 						ins->dreg = mono_alloc_ireg (cfg);
 
 						ins->next->opcode = OP_RISCV_BNE;
@@ -2193,9 +2200,11 @@ loop_start:
 			case OP_STOREI1_MEMBASE_REG:
 			case OP_STOREI2_MEMBASE_REG:
 			case OP_STOREI4_MEMBASE_REG:
+			case OP_STORER4_MEMBASE_REG:
 #ifdef TARGET_RISCV64
 			case OP_STOREI8_MEMBASE_REG:
 #endif
+			case OP_STORER8_MEMBASE_REG:
 			case OP_STORE_MEMBASE_REG:{
 				// check if offset is valid I-type Imm
 				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_offset)))
@@ -3905,6 +3914,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 					riscv_flt_s(code, ins->dreg, ins->sreg1, ins->sreg2);
 				break;
 			}
+			case OP_FCGT:
 			case OP_FCGT_UN:{
 				// fcgt rd, rs1, rs2 -> fle rd, rs2, rs1
 				g_assert(riscv_stdext_f || riscv_stdext_d);
@@ -3912,6 +3922,13 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 					riscv_fle_d(code, ins->dreg, ins->sreg2, ins->sreg1);
 				else
 					riscv_fle_s(code, ins->dreg, ins->sreg2, ins->sreg1);
+				break;
+			}
+			case OP_STORER4_MEMBASE_REG:{
+				if(mono_arch_is_soft_float())
+					code = mono_riscv_emit_store(code, ins->sreg1, ins->dreg, ins->inst_offset, 4);
+				else
+					code = mono_riscv_emit_fstore(code, ins->sreg1, ins->dreg, ins->inst_offset, TRUE);
 				break;
 			}
 			case OP_STORER8_MEMBASE_REG:{

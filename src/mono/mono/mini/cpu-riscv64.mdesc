@@ -70,6 +70,7 @@ storei1_membase_reg: dest:b src1:i len:4
 storei2_membase_reg: dest:b src1:i len:4
 storei4_membase_reg: dest:b src1:i len:4
 storei8_membase_reg: dest:b src1:i len:4
+storer4_membase_reg: dest:b src1:f len:4
 storer8_membase_reg: dest:b src1:f len:4
 
 load_membase: dest:i src1:b len:24
@@ -123,6 +124,7 @@ r4_conv_to_r8: dest:f src1:f len:4
 float_conv_to_i4: dest:i src1:f len:4
 float_ceq: dest:i src1:f src2:f len:4
 float_clt: dest:i src1:f src2:f len:4
+float_cgt: dest:i src1:f src2:f len:4
 float_cgt_un: dest:i src1:f src2:f len:4
 
 add_imm: dest:i src1:i len:4
