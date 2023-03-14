@@ -3127,7 +3127,8 @@ emit_move_args (MonoCompile *cfg, guint8 *code){
 					}
 					break;
 				case ArgInFReg:
-					code = mono_riscv_emit_fstore (code, ainfo->reg, ins->inst_basereg, ins->inst_offset, FALSE);
+				case ArgInFRegR4:
+					code = mono_riscv_emit_fstore (code, ainfo->reg, ins->inst_basereg, ins->inst_offset, ainfo->storage == ArgInFRegR4);
 					break;
 				case ArgVtypeInIReg:
 					if(ainfo->is_regpair)
