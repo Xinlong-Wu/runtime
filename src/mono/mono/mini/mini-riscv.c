@@ -2012,10 +2012,6 @@ loop_start:
 			case OP_LSHR_IMM:
 			case OP_LSHR_UN_IMM:
 			case OP_LOCALLOC:
-			case OP_ICONV_TO_R4:
-			case OP_ICONV_TO_R8:
-			case OP_FCONV_TO_I4:
-			case OP_FCEQ:
 			
 			/* skip dummy IL */
 			case OP_NOT_REACHED:
@@ -2057,10 +2053,35 @@ loop_start:
 
 			/* Float Ext */
 			case OP_R8CONST:
+			case OP_ICONV_TO_R4:
+			case OP_ICONV_TO_R8:
+			case OP_FCONV_TO_I4:
+			case OP_FCEQ:
+			case OP_FCLT:
 #ifdef TARGET_RISCV64
 			case OP_STORER8_MEMBASE_REG:
 #endif
 				break;
+			case OP_FCOMPARE:{
+				if (ins->next){
+					if(ins->next->opcode == OP_FBLT){
+						ins->opcode = OP_FCLT;
+						ins->dreg = mono_alloc_ireg (cfg);
+
+						ins->next->opcode = OP_RISCV_BNE;
+						ins->next->sreg1 = ins->dreg;
+						ins->next->sreg2 = RISCV_ZERO;
+					}
+					else {
+						g_print("Unhandaled op %s following after OP_FCOMPARE\n",mono_inst_name (ins->next->opcode));
+						NOT_IMPLEMENTED;
+					}
+				}
+				else{
+					g_assert_not_reached();
+				}
+				break;
+			}
 
 
 
@@ -2420,7 +2441,7 @@ loop_start:
 						break;
 					}
 					else {
-						g_print("Unhandaled op %d following after OP_{I|L}COMPARE{|_IMM}\n",ins->next->opcode);
+						g_print("Unhandaled op %s following after OP_{I|L}COMPARE{|_IMM}\n",mono_inst_name (ins->next->opcode));
 						NOT_IMPLEMENTED;
 					}
 				}
@@ -3849,6 +3870,14 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 					riscv_feq_d(code, ins->dreg, ins->sreg1, ins->sreg2);
 				else
 					riscv_feq_s(code, ins->dreg, ins->sreg1, ins->sreg2);
+				break;
+			}
+			case OP_FCLT:{
+				g_assert(riscv_stdext_f || riscv_stdext_d);
+				if(riscv_stdext_d)
+					riscv_flt_d(code, ins->dreg, ins->sreg1, ins->sreg2);
+				else
+					riscv_flt_s(code, ins->dreg, ins->sreg1, ins->sreg2);
 				break;
 			}
 			case OP_STORER8_MEMBASE_REG:{
