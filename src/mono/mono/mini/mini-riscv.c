@@ -1344,6 +1344,18 @@ add_outarg_reg (MonoCompile *cfg, MonoCallInst *call, ArgStorage storage, int re
 			MONO_ADD_INS (cfg->cbb, ins);
 			mono_call_inst_add_outarg_reg (cfg, call, ins->dreg, reg, TRUE);
 			break;
+		case ArgInFRegR4:
+#ifdef TARGET_RISCV64
+			// r4 convert to r8
+			MONO_INST_NEW (cfg, ins, OP_RCONV_TO_R8);
+			ins->dreg = mono_alloc_ireg_copy (cfg, arg->dreg);
+			ins->sreg1 = arg->dreg;
+			MONO_ADD_INS (cfg->cbb, ins);
+			mono_call_inst_add_outarg_reg (cfg, call, ins->dreg, reg, TRUE);
+#else
+			NOT_IMPLEMENTED;
+#endif
+			break;
 	}
 }
 
@@ -1468,6 +1480,7 @@ mono_arch_emit_call (MonoCompile *cfg, MonoCallInst *call)
 		switch (ainfo->storage){
 			case ArgInIReg:
 			case ArgInFReg:
+			case ArgInFRegR4:
 				add_outarg_reg (cfg, call, ainfo->storage, ainfo->reg, arg);
 				break;
 			case ArgOnStack:{
@@ -2055,6 +2068,7 @@ loop_start:
 			case OP_R8CONST:
 			case OP_ICONV_TO_R4:
 			case OP_ICONV_TO_R8:
+			case OP_RCONV_TO_R8:
 			case OP_FCONV_TO_I4:
 			case OP_FCEQ:
 			case OP_FCLT:
@@ -3854,6 +3868,11 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_ICONV_TO_R8:{
 				g_assert(riscv_stdext_d);
 				riscv_fcvt_d_w (code, ins->dreg, ins->sreg1);
+				break;
+			}
+			case OP_RCONV_TO_R8:{
+				g_assert(riscv_stdext_d);
+				riscv_fcvt_d_s (code, ins->dreg, ins->sreg1);
 				break;
 			}
 			case OP_FCONV_TO_I4:{
