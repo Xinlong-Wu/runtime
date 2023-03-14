@@ -1856,6 +1856,7 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 		switch (ainfo->storage){
 			case ArgInIReg:
 			case ArgInFReg:
+			case ArgInFRegR4:
 				offset += sizeof (host_mgreg_t);
 				ins->inst_offset = -offset;
 				break;
