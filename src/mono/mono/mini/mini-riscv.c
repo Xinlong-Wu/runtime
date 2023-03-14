@@ -2065,6 +2065,7 @@ loop_start:
 #endif
 
 			/* Float Ext */
+			case OP_R4CONST:
 			case OP_R8CONST:
 			case OP_ICONV_TO_R4:
 			case OP_ICONV_TO_R8:
@@ -3856,6 +3857,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 #endif
 
 			/* Float */
+			case OP_R4CONST:
 			case OP_R8CONST:{
 				code = mono_riscv_emit_float_imm(code, ins->dreg, *(guint64*)ins->inst_p0, FALSE);
 				break;

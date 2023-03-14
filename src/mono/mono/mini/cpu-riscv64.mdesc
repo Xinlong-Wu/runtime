@@ -101,7 +101,6 @@ fmove: dest:f src1:f len:4
 
 iconst: dest:i len:16
 i8const: dest:i len:16
-r8const: dest:f len:16
 int_add: dest:i src1:i src2:i len:4
 long_add: dest:i src1:i src2:i len:4
 int_sub: dest:i src1:i src2:i len:4
@@ -115,6 +114,8 @@ long_rem: dest:i src1:i src2:i len:32
 int_rem_un: dest:i src1:i src2:i len:32
 long_rem_un: dest:i src1:i src2:i len:32
 
+r4const: dest:f len:16
+r8const: dest:f len:16
 int_conv_to_r4: dest:f src1:i len:4
 int_conv_to_r8: dest:f src1:i len:4
 r4_conv_to_r8: dest:f src1:f len:4
