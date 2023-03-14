@@ -2074,13 +2074,14 @@ loop_start:
 			case OP_FCONV_TO_I4:
 			case OP_FCEQ:
 			case OP_FCLT:
+			case OP_FCGT_UN:
 #ifdef TARGET_RISCV64
 			case OP_STORER8_MEMBASE_REG:
 #endif
 				break;
 			case OP_FCOMPARE:{
 				if (ins->next){
-					if(ins->next->opcode == OP_FBLT){
+					if(ins->next->opcode == OP_FBLT || ins->next->opcode == OP_FBLT_UN){
 						ins->opcode = OP_FCLT;
 						ins->dreg = mono_alloc_ireg (cfg);
 
@@ -3902,6 +3903,15 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 					riscv_flt_d(code, ins->dreg, ins->sreg1, ins->sreg2);
 				else
 					riscv_flt_s(code, ins->dreg, ins->sreg1, ins->sreg2);
+				break;
+			}
+			case OP_FCGT_UN:{
+				// fcgt rd, rs1, rs2 -> fle rd, rs2, rs1
+				g_assert(riscv_stdext_f || riscv_stdext_d);
+				if(riscv_stdext_d)
+					riscv_fle_d(code, ins->dreg, ins->sreg2, ins->sreg1);
+				else
+					riscv_fle_s(code, ins->dreg, ins->sreg2, ins->sreg1);
 				break;
 			}
 			case OP_STORER8_MEMBASE_REG:{
