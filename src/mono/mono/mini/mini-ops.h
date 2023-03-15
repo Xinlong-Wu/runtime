@@ -1808,6 +1808,9 @@ MINI_OP(OP_RISCV_SLT, "riscv_slt", IREG, IREG, IREG)
 MINI_OP(OP_RISCV_SLTU, "riscv_sltu", IREG, IREG, IREG)
 MINI_OP(OP_RISCV_SLTI, "riscv_slti", IREG, IREG, NONE)
 MINI_OP(OP_RISCV_SLTIU, "riscv_sltiu", IREG, IREG, NONE)
+
+// used for cfg->r4fp == FALSE
+MINI_OP(OP_RISCV_SETFREG_R4,"riscv_setfreg_r4", FREG, FREG, NONE)
 #endif
 
 #if defined(TARGET_RISCV64)

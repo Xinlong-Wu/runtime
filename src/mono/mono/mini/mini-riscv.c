@@ -1342,7 +1342,10 @@ add_outarg_reg (MonoCompile *cfg, MonoCallInst *call, ArgStorage storage, int re
 			mono_call_inst_add_outarg_reg (cfg, call, ins->dreg, reg, TRUE);
 			break;
 		case ArgInFRegR4:
-			MONO_INST_NEW (cfg, ins, OP_RMOVE);
+			if (cfg->r4fp)
+				MONO_INST_NEW (cfg, ins, OP_RMOVE);
+			else
+				MONO_INST_NEW (cfg, ins, OP_RISCV_SETFREG_R4);
 			ins->dreg = mono_alloc_freg (cfg);
 			ins->sreg1 = arg->dreg;
 			MONO_ADD_INS (cfg->cbb, ins);
@@ -1935,10 +1938,16 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 	cfg->stack_offset = offset;
 }
 
-#define NEW_INS(cfg,ins,dest,op) do {	\
+#define NEW_INS_BEFORE(cfg,ins,dest,op) do {	\
 		MONO_INST_NEW ((cfg), (dest), (op)); \
 		(dest)->cil_code = (ins)->cil_code; \
 		mono_bblock_insert_before_ins (bb, ins, (dest)); \
+	} while (0)
+
+#define NEW_INS_AFTER(cfg,ins,dest,op) do {	\
+		MONO_INST_NEW ((cfg), (dest), (op)); \
+		(dest)->cil_code = (ins)->cil_code; \
+		mono_bblock_insert_after_ins (bb, ins, (dest)); \
 	} while (0)
 
 /*
@@ -2059,9 +2068,7 @@ loop_start:
 #endif
 
 			/* Float Ext */
-			case OP_R4CONST:
 			case OP_R8CONST:
-			case OP_ICONV_TO_R4:
 			case OP_ICONV_TO_R8:
 			case OP_RCONV_TO_R8:
 			case OP_FCONV_TO_I4:
@@ -2069,7 +2076,19 @@ loop_start:
 			case OP_FCLT:
 			case OP_FCGT:
 			case OP_FCGT_UN:
+			case OP_RISCV_SETFREG_R4:
 				break;
+			case OP_R4CONST:
+			case OP_ICONV_TO_R4:{
+				if(!cfg->r4fp){
+					NEW_INS_AFTER (cfg, ins, temp, OP_RCONV_TO_R8);
+					temp->dreg = ins->dreg;
+					temp->sreg1 = mono_alloc_freg(cfg);
+
+					ins->dreg = temp->sreg1;
+				}
+				break;
+			}
 			case OP_FCOMPARE:{
 				if (ins->next){
 					if(ins->next->opcode == OP_FBLT || ins->next->opcode == OP_FBLT_UN){
@@ -2115,13 +2134,13 @@ loop_start:
 			case OP_VOIDCALL_MEMBASE:
 				if(!RISCV_VALID_J_IMM(ins->inst_offset)){
 					NOT_IMPLEMENTED;
-					NEW_INS (cfg, ins, temp, OP_ICONST);
+					NEW_INS_BEFORE (cfg, ins, temp, OP_ICONST);
 					temp->dreg = mono_alloc_ireg (cfg);
 					temp->inst_c0 = ins->inst_offset;
 
 					ins->sreg1 = temp->dreg;
 
-					NEW_INS (cfg, ins, temp, OP_LADD);
+					NEW_INS_BEFORE (cfg, ins, temp, OP_LADD);
 					temp->dreg = ins->sreg1;
 					temp->sreg1 = ins->sreg1;
 					temp->sreg2 = ins->inst_basereg;
@@ -2139,7 +2158,7 @@ loop_start:
 			case OP_THROW:
 			case OP_RETHROW:
 				if (ins->sreg1 != RISCV_A0){
-					NEW_INS (cfg, ins, temp, OP_MOVE);
+					NEW_INS_BEFORE (cfg, ins, temp, OP_MOVE);
 					temp->dreg = RISCV_A0;
 					temp->sreg1 = ins->sreg1;
 					ins->sreg1 = RISCV_A0;
@@ -2155,7 +2174,7 @@ loop_start:
 #endif
 			case OP_STORE_MEMBASE_IMM:{
 				if(ins->inst_imm != 0){
-					NEW_INS (cfg, ins, temp, OP_ICONST);
+					NEW_INS_BEFORE (cfg, ins, temp, OP_ICONST);
 					temp->inst_c0 = ins->inst_imm;
 					temp->dreg = mono_alloc_ireg (cfg);
 					
@@ -2199,6 +2218,13 @@ loop_start:
 #endif
 			case OP_STORER8_MEMBASE_REG:
 			case OP_STORE_MEMBASE_REG:{
+				if(ins->opcode == OP_STORER4_MEMBASE_REG && !cfg->r4fp){
+					NEW_INS_BEFORE (cfg, ins, temp, OP_FCONV_TO_R4);
+					temp->dreg = mono_alloc_freg(cfg);
+					temp->sreg1 = ins->dreg;
+				
+					ins->sreg1 = temp->dreg;
+				}
 				// check if offset is valid I-type Imm
 				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_offset)))
 					NOT_IMPLEMENTED;
@@ -2217,8 +2243,15 @@ loop_start:
 			case OP_LOADR4_MEMBASE:
 			case OP_LOADR8_MEMBASE:
 			case OP_LOAD_MEMBASE:
+				if(ins->opcode == OP_LOADR4_MEMBASE && !cfg->r4fp){
+					NEW_INS_AFTER (cfg, ins, temp, OP_RCONV_TO_R8);
+					temp->dreg = ins->dreg;
+					temp->sreg1 = mono_alloc_freg(cfg);
+
+					ins->dreg = temp->sreg1;
+				}
 				if(! RISCV_VALID_I_IMM ((gint32) (gssize) (ins->inst_imm))){
-					NEW_INS (cfg, ins, temp, OP_ICONST);
+					NEW_INS_BEFORE (cfg, ins, temp, OP_ICONST);
 					temp->inst_c0 = ins->inst_imm;
 					temp->dreg = mono_alloc_ireg (cfg);
 					ins->sreg1 = temp->dreg;
@@ -2297,7 +2330,7 @@ loop_start:
 					ins->sreg2 = RISCV_ZERO;
 				}
 				else{
-					NEW_INS (cfg, ins, temp, OP_ICONST);
+					NEW_INS_BEFORE (cfg, ins, temp, OP_ICONST);
 					temp->inst_c0 = ins->inst_imm;
 					temp->dreg = mono_alloc_ireg (cfg);
 					ins->sreg2 = temp->dreg;
@@ -2511,13 +2544,13 @@ loop_start:
 						branch_ins->sreg2 = mono_alloc_ireg (cfg);
 
 						// slti t3, t2, 0
-						NEW_INS (cfg, branch_ins, temp, OP_RISCV_SLTI);
+						NEW_INS_BEFORE (cfg, branch_ins, temp, OP_RISCV_SLTI);
 						temp->dreg = branch_ins->sreg1;
 						temp->sreg1 = ins->sreg2;
 						temp->inst_imm = 0;
 
 						// slt t4,t0,t1
-						NEW_INS (cfg, branch_ins, temp, OP_RISCV_SLT);
+						NEW_INS_BEFORE (cfg, branch_ins, temp, OP_RISCV_SLT);
 						temp->dreg = branch_ins->sreg2;
 						temp->sreg1 = ins->dreg;
 						temp->sreg2 = ins->sreg1;
@@ -2531,7 +2564,7 @@ loop_start:
 			}
 			case OP_MUL_IMM:{
 				g_assert(riscv_stdext_m);
-				NEW_INS (cfg, ins, temp, OP_ICONST);
+				NEW_INS_BEFORE (cfg, ins, temp, OP_ICONST);
 				temp->inst_c0 = ins->inst_imm;
 				temp->dreg = mono_alloc_ireg (cfg);
 				ins->sreg2 = temp->dreg;
@@ -2574,7 +2607,7 @@ loop_start:
 			case OP_LCONV_TO_U2:
 				// slli    a0, a0, 48
         		// srli    a0, a0, 48
-				NEW_INS (cfg, ins, temp, OP_ICONST);
+				NEW_INS_BEFORE (cfg, ins, temp, OP_ICONST);
 				temp->opcode = OP_SHL_IMM;
 				temp->dreg = ins->dreg;
 				temp->sreg1 = ins->sreg1;
@@ -2588,7 +2621,7 @@ loop_start:
 			case OP_ICONV_TO_I2:
 				// slli    a0, a0, 48
         		// srai    a0, a0, 48
-				NEW_INS (cfg, ins, temp, OP_ICONST);
+				NEW_INS_BEFORE (cfg, ins, temp, OP_ICONST);
 				temp->opcode = OP_SHL_IMM;
 				temp->dreg = ins->dreg;
 				temp->sreg1 = ins->sreg1;
@@ -2616,7 +2649,7 @@ loop_start:
 				else{
 					// slli a0, a1, 32
 					// srli a0, a0, 32
-					NEW_INS (cfg, ins, temp, OP_SHL_IMM);
+					NEW_INS_BEFORE (cfg, ins, temp, OP_SHL_IMM);
 					temp->dreg = ins->dreg;
 					temp->sreg1 = ins->sreg1;
 					temp->inst_imm = 32;
@@ -3894,9 +3927,15 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_FCONV_TO_I4:{
 				g_assert(riscv_stdext_f || riscv_stdext_d);
 				if(riscv_stdext_d)
-					riscv_fcvt_w_d(code, RISCV_ROUND_DY, ins->dreg, ins->sreg1);
+					riscv_fcvt_w_d (code, RISCV_ROUND_DY, ins->dreg, ins->sreg1);
 				else
-					riscv_fcvt_w_s(code, RISCV_ROUND_DY, ins->dreg, ins->sreg1);
+					riscv_fcvt_w_s (code, RISCV_ROUND_DY, ins->dreg, ins->sreg1);
+				break;
+			}
+			case OP_FCONV_TO_R4:
+			case OP_RISCV_SETFREG_R4:{
+				g_assert(riscv_stdext_d);
+				riscv_fcvt_s_d (code, RISCV_ROUND_DY, ins->dreg, ins->sreg1);
 				break;
 			}
 			case OP_FCEQ:{
