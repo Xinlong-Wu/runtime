@@ -90,7 +90,7 @@ extern gboolean riscv_stdext_a, riscv_stdext_b, riscv_stdext_c,
 #ifdef TARGET_RISCV64
 
 #define MONO_ARCH_INST_FIXED_REG(desc) \
-	((desc) == 'a' || ((desc) == 'f') ? RISCV_A0 : -1)
+	((desc) == 'a' || (mono_arch_is_soft_float () && (desc) == 'f') ? RISCV_A0 : -1)
 #define MONO_ARCH_INST_IS_REGPAIR(desc) \
 	(FALSE)
 #define MONO_ARCH_INST_REGPAIR_REG2(desc, hreg1) \

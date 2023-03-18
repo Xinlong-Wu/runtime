@@ -2074,8 +2074,6 @@ loop_start:
 			case OP_FCONV_TO_I4:
 			case OP_FCEQ:
 			case OP_FCLT:
-			case OP_FCGT:
-			case OP_FCGT_UN:
 			case OP_RISCV_SETFREG_R4:
 				break;
 			case OP_R4CONST:
@@ -2087,6 +2085,15 @@ loop_start:
 
 					ins->dreg = temp->sreg1;
 				}
+				break;
+			}
+			case OP_FCGT:
+			case OP_FCGT_UN:{
+				// fcgt rd, rs1, rs2 -> flt rd, rs2, rs1
+				ins->opcode = OP_FCLT;
+				int tmp_reg = ins->sreg1;
+				ins->sreg1 = ins->sreg2;
+				ins->sreg2 = tmp_reg;
 				break;
 			}
 			case OP_FCOMPARE:{
@@ -2101,8 +2108,12 @@ loop_start:
 					}
 					else if(ins->next->opcode == OP_FBGT || ins->next->opcode == OP_FBGT_UN){
 						// fcmp rd, rs1, rs2; fbgt rd -> fcgt rd, rs1, rs2; bne rd, X0
-						ins->opcode = OP_FCGT;
+						// fcgt rd, rs1, rs2 -> flt rd, rs2, rs1
+						ins->opcode = OP_FCLT;
 						ins->dreg = mono_alloc_ireg (cfg);
+						int tmp_reg = ins->sreg1;
+						ins->sreg1 = ins->sreg2;
+						ins->sreg2 = tmp_reg;
 
 						ins->next->opcode = OP_RISCV_BNE;
 						ins->next->sreg1 = ins->dreg;
@@ -3952,16 +3963,6 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 					riscv_flt_d(code, ins->dreg, ins->sreg1, ins->sreg2);
 				else
 					riscv_flt_s(code, ins->dreg, ins->sreg1, ins->sreg2);
-				break;
-			}
-			case OP_FCGT:
-			case OP_FCGT_UN:{
-				// fcgt rd, rs1, rs2 -> fle rd, rs2, rs1
-				g_assert(riscv_stdext_f || riscv_stdext_d);
-				if(riscv_stdext_d)
-					riscv_fle_d(code, ins->dreg, ins->sreg2, ins->sreg1);
-				else
-					riscv_fle_s(code, ins->dreg, ins->sreg2, ins->sreg1);
 				break;
 			}
 			case OP_STORER4_MEMBASE_REG:{
