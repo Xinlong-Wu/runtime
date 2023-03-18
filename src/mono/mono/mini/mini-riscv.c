@@ -2232,7 +2232,7 @@ loop_start:
 				if(ins->opcode == OP_STORER4_MEMBASE_REG && !cfg->r4fp){
 					NEW_INS_BEFORE (cfg, ins, temp, OP_FCONV_TO_R4);
 					temp->dreg = mono_alloc_freg(cfg);
-					temp->sreg1 = ins->dreg;
+					temp->sreg1 = ins->sreg1;
 				
 					ins->sreg1 = temp->dreg;
 				}
