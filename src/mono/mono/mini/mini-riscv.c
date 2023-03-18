@@ -2046,6 +2046,7 @@ loop_start:
 			case OP_RISCV_EXC_BEQ:
 			case OP_RISCV_EXC_BNE:
 			case OP_RISCV_EXC_BGEU:
+			case OP_RISCV_EXC_BLT:
 			case OP_RISCV_EXC_BLTU:
 			case OP_RISCV_SLT:
 			case OP_RISCV_SLTU:
@@ -2363,6 +2364,12 @@ loop_start:
 					}
 					else if(ins->next->opcode == OP_COND_EXC_NE_UN){
 						ins->next->opcode = OP_RISCV_EXC_BNE;
+						ins->next->sreg1 = ins->sreg1;
+						ins->next->sreg2 = ins->sreg2;
+						NULLIFY_INS (ins);
+					}
+					else if(ins->next->opcode == OP_COND_EXC_LT){
+						ins->next->opcode = OP_RISCV_EXC_BLT;
 						ins->next->sreg1 = ins->sreg1;
 						ins->next->sreg2 = ins->sreg2;
 						NULLIFY_INS (ins);
@@ -2964,6 +2971,9 @@ mono_riscv_emit_branch_exc (MonoCompile *cfg, guint8 *code, int opcode, int sreg
 			break;
 		case OP_RISCV_EXC_BNE:
 			riscv_beq(code, sreg1, sreg2, 16 + sizeof (guint64));
+			break;
+		case OP_RISCV_EXC_BLT:
+			riscv_bge(code, sreg1, sreg2, 16 + sizeof (guint64));
 			break;
 		case OP_RISCV_EXC_BLTU:
 			riscv_bgeu(code, sreg1, sreg2, 16 + sizeof (guint64));
@@ -4069,6 +4079,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			case OP_RISCV_EXC_BNE:
 			case OP_RISCV_EXC_BEQ:
 			case OP_RISCV_EXC_BGEU:
+			case OP_RISCV_EXC_BLT:
 			case OP_RISCV_EXC_BLTU:{
 				code = mono_riscv_emit_branch_exc (cfg, code, ins->opcode, ins->sreg1, ins->sreg2, (const char*)ins->inst_p1);
 				break;

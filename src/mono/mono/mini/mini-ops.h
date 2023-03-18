@@ -1793,6 +1793,7 @@ MINI_OP3(OP_BSL,            "bitwise_select", XREG, XREG, XREG, XREG)
 MINI_OP(OP_RISCV_EXC_BEQ, "riscv_exc_beq", NONE, IREG, IREG)
 MINI_OP(OP_RISCV_EXC_BNE, "riscv_exc_bne", NONE, IREG, IREG)
 MINI_OP(OP_RISCV_EXC_BGEU, "riscv_exc_bgeu", NONE, IREG, IREG)
+MINI_OP(OP_RISCV_EXC_BLT, "riscv_exc_blt", NONE, IREG, IREG)
 MINI_OP(OP_RISCV_EXC_BLTU, "riscv_exc_bltu", NONE, IREG, IREG)
 
 MINI_OP(OP_RISCV_BEQ, "riscv_beq", NONE, IREG, IREG)
