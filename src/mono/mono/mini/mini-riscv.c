@@ -2076,6 +2076,7 @@ loop_start:
 			case OP_FCONV_TO_I4:
 			case OP_FCEQ:
 			case OP_FCLT:
+			case OP_FCLT_UN:
 			case OP_RISCV_SETFREG_R4:
 				break;
 			case OP_R4CONST:
@@ -3968,7 +3969,8 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 					riscv_feq_s(code, ins->dreg, ins->sreg1, ins->sreg2);
 				break;
 			}
-			case OP_FCLT:{
+			case OP_FCLT:
+			case OP_FCLT_UN:{
 				g_assert(riscv_stdext_f || riscv_stdext_d);
 				if(riscv_stdext_d)
 					riscv_flt_d(code, ins->dreg, ins->sreg1, ins->sreg2);
