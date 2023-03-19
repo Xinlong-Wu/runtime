@@ -1,10 +1,13 @@
+using System;
 namespace HelloWorld
 {
   class Program
   {
-    static void Main()
+    static int Main()
     {
-      return;
+      Console.WriteLine($"IsMono: {Type.GetType("Mono.RuntimeStructs") != null}");
+      Console.WriteLine("Hello RISC-V");
+      return 0;
     }
   }
 }
