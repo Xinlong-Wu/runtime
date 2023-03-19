@@ -320,17 +320,24 @@ mono_arch_create_specific_trampoline (gpointer arg1, MonoTrampolineType tramp_ty
 gpointer
 mono_arch_get_unbox_trampoline (MonoMethod *m, gpointer addr)
 {
+	guint8 *code, *start;
+	guint32 size = 32;
 	MonoMemoryManager *mem_manager = m_method_get_mem_manager (m);
-	guint8 *buf = mono_mem_manager_code_reserve (mem_manager, 64), *code = buf;
+
+	start = code = mono_mem_manager_code_reserve (mem_manager, size);
+
+	MINI_BEGIN_CODEGEN ();
 
 	// Pass the argument in a0.
-	code = mono_riscv_emit_imm (code, RISCV_A0, sizeof (MonoObject));
+	riscv_addi (code, RISCV_A0, RISCV_A0, MONO_ABI_SIZEOF (MonoObject));
 	code = mono_riscv_emit_imm (code, RISCV_T0, (gsize) addr);
 	riscv_jalr (code, RISCV_ZERO, RISCV_T0, 0);
 
-	mono_arch_flush_icache (buf, code - buf);
+	g_assert ((code - start) <= size);
 
-	return buf;
+	MINI_END_CODEGEN (start, code - start, MONO_PROFILER_CODE_BUFFER_UNBOX_TRAMPOLINE, m);
+
+	return (gpointer)MINI_ADDR_TO_FTNPTR (start);
 }
 
 gpointer
