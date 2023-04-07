@@ -1341,7 +1341,7 @@ add_outarg_reg (MonoCompile *cfg, MonoCallInst *call, ArgStorage storage, int re
 		mono_call_inst_add_outarg_reg (cfg, call, ins->dreg, reg, TRUE);
 		break;
 	case ArgInFRegR4:
-		if (cfg->r4fp)
+		if (!riscv_stdext_d)
 			MONO_INST_NEW (cfg, ins, OP_RMOVE);
 		else
 			MONO_INST_NEW (cfg, ins, OP_RISCV_SETFREG_R4);
@@ -2073,7 +2073,7 @@ loop_start:
 			break;
 		case OP_R4CONST:
 		case OP_ICONV_TO_R4:
-			if(!cfg->r4fp){
+			if(riscv_stdext_d){
 				NEW_INS_AFTER (cfg, ins, temp, OP_RCONV_TO_R8);
 				temp->dreg = ins->dreg;
 				temp->sreg1 = mono_alloc_freg(cfg);
@@ -2219,7 +2219,7 @@ loop_start:
 #endif
 		case OP_STORER8_MEMBASE_REG:
 		case OP_STORE_MEMBASE_REG:
-			if(ins->opcode == OP_STORER4_MEMBASE_REG && !cfg->r4fp){
+			if(ins->opcode == OP_STORER4_MEMBASE_REG && riscv_stdext_d){
 				NEW_INS_BEFORE (cfg, ins, temp, OP_FCONV_TO_R4);
 				temp->dreg = mono_alloc_freg(cfg);
 				temp->sreg1 = ins->sreg1;
@@ -2244,7 +2244,7 @@ loop_start:
 		case OP_LOADR4_MEMBASE:
 		case OP_LOADR8_MEMBASE:
 		case OP_LOAD_MEMBASE:
-			if(ins->opcode == OP_LOADR4_MEMBASE && !cfg->r4fp){
+			if(ins->opcode == OP_LOADR4_MEMBASE && riscv_stdext_d){
 				NEW_INS_AFTER (cfg, ins, temp, OP_RCONV_TO_R8);
 				temp->dreg = ins->dreg;
 				temp->sreg1 = mono_alloc_freg(cfg);
