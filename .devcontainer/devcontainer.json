@@ -1,16 +1,10 @@
 // For format details, see https://aka.ms/devcontainer.json.
 {
 	"name": "Standard configuration",
-	"build": {
-		"dockerfile": "Dockerfile",
-		"args": {
-			// Update 'VARIANT' to pick a .NET Core version: 6.0, 7.0
-			"VARIANT": "6.0-jammy"
-		}
-	},
+	"image": "mcr.microsoft.com/dotnet-buildtools/prereqs:ubuntu-22.04-cross-riscv64",
 	"hostRequirements": {
-		"cpus": 4,
-		"memory": "8gb"
+		"cpus": 8,
+		"memory": "16gb"
 	},
 
 	"features": {
@@ -40,6 +34,7 @@
 	// This allows developers to just use 'dotnet build' on the command-line, and the local dotnet version will be used.
 	"remoteEnv": {
 		"PATH": "${containerWorkspaceFolder}/.dotnet:${containerEnv:PATH}",
+		"ROOTFS_DIR": "/crossrootfs/riscv64",
 		"DOTNET_MULTILEVEL_LOOKUP": "0"
 	},
 
