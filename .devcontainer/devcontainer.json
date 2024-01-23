@@ -3,7 +3,7 @@
 	"name": "Standard configuration",
 	"image": "mcr.microsoft.com/dotnet-buildtools/prereqs:ubuntu-22.04-cross-riscv64",
 	"hostRequirements": {
-		"cpus": 8,
+		"cpus": 4,
 		"memory": "16gb"
 	},
 
