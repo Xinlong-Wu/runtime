@@ -3683,51 +3683,6 @@
         <ExcludeList Include = "$(XunitTestBinBase)/ilasm/System/Runtime/CompilerServices/MethodImplOptionsTests/**">
             <Issue> Did not find ilasm or ildasm in CORE_ROOT directory </Issue>
         </ExcludeList>
-        <ExcludeList Include = "$(XunitTestBinBase)/tracing/eventpipe/bigevent/bigevent/**">
-            <Issue>Can't find file dotnet-diagnostic-{pid}-*-socket</Issue>
-        </ExcludeList>
-        <ExcludeList Include = "$(XunitTestBinBase)/tracing/eventpipe/eventsourceerror/eventsourceerror/**">
-            <Issue>Can't find file dotnet-diagnostic-{pid}-*-socket</Issue>
-        </ExcludeList>
-        <ExcludeList Include = "$(XunitTestBinBase)/tracing/eventpipe/buffersize/buffersize/**">
-            <Issue>Can't find file dotnet-diagnostic-{pid}-*-socket</Issue>
-        </ExcludeList>
-        <ExcludeList Include = "$(XunitTestBinBase)/tracing/eventpipe/enabledisable/enabledisable/**">
-            <Issue>Can't find file dotnet-diagnostic-{pid}-*-socket</Issue>
-        </ExcludeList>
-        <ExcludeList Include = "$(XunitTestBinBase)/tracing/eventpipe/gcdump/gcdump/**">
-            <Issue>Can't find file dotnet-diagnostic-{pid}-*-socket</Issue>
-        </ExcludeList>
-        <ExcludeList Include = "$(XunitTestBinBase)/tracing/eventpipe/processinfo/processinfo/**">
-            <Issue>Can't find file dotnet-diagnostic-{pid}-*-socket</Issue>
-        </ExcludeList>
-        <ExcludeList Include = "$(XunitTestBinBase)/tracing/eventpipe/processinfo2/processinfo2/**">
-            <Issue>Can't find file dotnet-diagnostic-{pid}-*-socket</Issue>
-        </ExcludeList>
-        <ExcludeList Include = "$(XunitTestBinBase)/tracing/eventpipe/processinfo3/processinfo3/**">
-            <Issue>Can't find file dotnet-diagnostic-{pid}-*-socket</Issue>
-        </ExcludeList>
-        <ExcludeList Include = "$(XunitTestBinBase)/tracing/eventpipe/providervalidation/providervalidation/**">
-            <Issue>Can't find file dotnet-diagnostic-{pid}-*-socket</Issue>
-        </ExcludeList>
-        <ExcludeList Include = "$(XunitTestBinBase)/tracing/eventpipe/rundownvalidation/rundownvalidation/**">
-            <Issue>Can't find file dotnet-diagnostic-{pid}-*-socket</Issue>
-        </ExcludeList>
-        <ExcludeList Include = "$(XunitTestBinBase)/tracing/eventpipe/reverse/reverse/**">
-           <Issue> Process has start correctly, but EventPipeClient.ListAvailablePorts() still contain this PID</Issue>
-        </ExcludeList>
-        <ExcludeList Include = "$(XunitTestBinBase)/tracing/eventpipe/processenvironment/processenvironment/**">
-            <Issue>https://github.com/dotnet/runtime/issues/74891</Issue>
-        </ExcludeList>
-        <ExcludeList Include = "$(XunitTestBinBase)/tracing/eventpipe/diagnosticport/diagnosticport/**">
-            <Issue>https://github.com/dotnet/runtime/issues/74891</Issue>
-        </ExcludeList>
-        <ExcludeList Include = "$(XunitTestBinBase)/tracing/eventpipe/pauseonstart/pauseonstart/**">
-            <Issue>https://github.com/dotnet/runtime/issues/74891</Issue>
-        </ExcludeList>
-        <ExcludeList Include = "$(XunitTestBinBase)/tracing/eventpipe/reverseouter/reverseouter/**">
-            <Issue>https://github.com/dotnet/runtime/issues/74891</Issue>
-        </ExcludeList>
     </ItemGroup>
 
     <Target Name="GetFilteredExcludeList" Returns="@(FilteredExcludeList)">
