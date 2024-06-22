@@ -841,10 +841,6 @@ namespace System
             str[i] == '0' &&
             (str[i + 1] | 0x20) == 'x';
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static unsafe ReadOnlySpan<byte> AsBytes(in Guid source) =>
-            new ReadOnlySpan<byte>(Unsafe.AsPointer(ref Unsafe.AsRef(in source)), sizeof(Guid));
-
         // Returns an unsigned byte array containing the GUID.
         public byte[] ToByteArray()
         {
@@ -856,7 +852,7 @@ namespace System
             else
             {
                 // slower path for BigEndian
-                Guid guid = new Guid(AsBytes(this), false);
+                Guid guid = new Guid(MemoryMarshal.AsBytes(new ReadOnlySpan<Guid>(in this)), false);
                 MemoryMarshal.TryWrite(g, in guid);
             }
             return g;
@@ -874,7 +870,7 @@ namespace System
             else
             {
                 // slower path for Reverse
-                Guid guid = new Guid(AsBytes(this), bigEndian);
+                Guid guid = new Guid(MemoryMarshal.AsBytes(new ReadOnlySpan<Guid>(in this)), bigEndian);
                 MemoryMarshal.TryWrite(g, in guid);
             }
             return g;
@@ -893,7 +889,7 @@ namespace System
             else
             {
                 // slower path for BigEndian
-                Guid guid = new Guid(AsBytes(this), false);
+                Guid guid = new Guid(MemoryMarshal.AsBytes(new ReadOnlySpan<Guid>(in this)), false);
                 MemoryMarshal.TryWrite(destination, in guid);
             }
             return true;
@@ -915,7 +911,7 @@ namespace System
             else
             {
                 // slower path for Reverse
-                Guid guid = new Guid(AsBytes(this), bigEndian);
+                Guid guid = new Guid(MemoryMarshal.AsBytes(new ReadOnlySpan<Guid>(in this)), bigEndian);
                 MemoryMarshal.TryWrite(destination, in guid);
             }
             bytesWritten = 16;
@@ -962,68 +958,11 @@ namespace System
             {
                 return 1;
             }
-            if (!(value is Guid))
+            if (value is not Guid other)
             {
                 throw new ArgumentException(SR.Arg_MustBeGuid, nameof(value));
             }
-            Guid g = (Guid)value;
-
-            if (g._a != _a)
-            {
-                return GetResult((uint)_a, (uint)g._a);
-            }
-
-            if (g._b != _b)
-            {
-                return GetResult((uint)_b, (uint)g._b);
-            }
-
-            if (g._c != _c)
-            {
-                return GetResult((uint)_c, (uint)g._c);
-            }
-
-            if (g._d != _d)
-            {
-                return GetResult(_d, g._d);
-            }
-
-            if (g._e != _e)
-            {
-                return GetResult(_e, g._e);
-            }
-
-            if (g._f != _f)
-            {
-                return GetResult(_f, g._f);
-            }
-
-            if (g._g != _g)
-            {
-                return GetResult(_g, g._g);
-            }
-
-            if (g._h != _h)
-            {
-                return GetResult(_h, g._h);
-            }
-
-            if (g._i != _i)
-            {
-                return GetResult(_i, g._i);
-            }
-
-            if (g._j != _j)
-            {
-                return GetResult(_j, g._j);
-            }
-
-            if (g._k != _k)
-            {
-                return GetResult(_k, g._k);
-            }
-
-            return 0;
+            return CompareTo(other);
         }
 
         public int CompareTo(Guid value)

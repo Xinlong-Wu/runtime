@@ -745,16 +745,11 @@ bool HWIntrinsicInfo::isImmOp(NamedIntrinsic id, const GenTree* op)
 // Arguments:
 //    argType    -- the required type of argument
 //    argClass   -- the class handle of argType
-//    expectAddr -- if true indicates we are expecting type stack entry to be a TYP_BYREF.
-//    newobjThis -- For CEE_NEWOBJ, this is the temp grabbed for the allocated uninitialized object.
 //
 // Return Value:
 //     the validated argument
 //
-GenTree* Compiler::getArgForHWIntrinsic(var_types            argType,
-                                        CORINFO_CLASS_HANDLE argClass,
-                                        bool                 expectAddr,
-                                        GenTree*             newobjThis)
+GenTree* Compiler::getArgForHWIntrinsic(var_types argType, CORINFO_CLASS_HANDLE argClass)
 {
     GenTree* arg = nullptr;
 
@@ -768,31 +763,12 @@ GenTree* Compiler::getArgForHWIntrinsic(var_types            argType,
         }
         assert(varTypeIsSIMD(argType));
 
-        if (newobjThis == nullptr)
-        {
-            if (expectAddr)
-            {
-                arg = gtNewLoadValueNode(argType, impPopStack().val);
-            }
-            else
-            {
-                arg = impSIMDPopStack();
-            }
-            assert(varTypeIsSIMD(arg));
-        }
-        else
-        {
-            assert(newobjThis->IsLclVarAddr());
-            arg = newobjThis;
-
-            // push newobj result on type stack
-            unsigned lclNum = arg->AsLclVarCommon()->GetLclNum();
-            impPushOnStack(gtNewLclvNode(lclNum, lvaGetRealType(lclNum)), verMakeTypeInfo(argClass));
-        }
+        arg = impSIMDPopStack();
+        assert(varTypeIsSIMDOrMask(arg));
     }
     else
     {
-        assert(varTypeIsArithmetic(argType) || ((argType == TYP_BYREF) && (newobjThis == nullptr)));
+        assert(varTypeIsArithmetic(argType) || (argType == TYP_BYREF));
 
         arg = impPopStack().val;
         assert(varTypeIsArithmetic(arg->TypeGet()) || ((argType == TYP_BYREF) && arg->TypeIs(TYP_BYREF)));
@@ -832,10 +808,10 @@ GenTree* Compiler::addRangeCheckIfNeeded(
 #ifdef TARGET_XARCH
         && !HWIntrinsicInfo::isAVX2GatherIntrinsic(intrinsic) && !HWIntrinsicInfo::HasFullRangeImm(intrinsic)
 #endif
-            )
+    )
     {
         assert(!immOp->IsCnsIntOrI());
-        assert(varTypeIsUnsigned(immOp));
+        assert(varTypeIsIntegral(immOp));
 
         return addRangeCheckForHWIntrinsic(immOp, immLowerBound, immUpperBound);
     }
@@ -1033,6 +1009,97 @@ struct HWIntrinsicSignatureReader final
 };
 
 //------------------------------------------------------------------------
+// CheckHWIntrinsicImmRange: Check if an immediate is within the valid range
+//
+// Arguments:
+//    intrinsicId       -- HW intrinsic id
+//    simdBaseJitType   -- The base JIT type of SIMD type of the intrinsic
+//    immOp             -- Immediate to check is within range
+//    mustExpand        -- true if the intrinsic must expand to a GenTree*; otherwise, false
+//    immLowerBound     -- the lower valid bound of the immediate
+//    immLowerBound     -- the upper valid bound of the immediate
+//    hasFullRangeImm   -- the range has all valid values. The immediate is always within range.
+//    useFallback [OUT] -- Only set if false is returned. A fallback can be used instead.
+//
+// Return Value:
+//    returns true if immOp is within range. Otherwise false.
+//
+bool Compiler::CheckHWIntrinsicImmRange(NamedIntrinsic intrinsic,
+                                        CorInfoType    simdBaseJitType,
+                                        GenTree*       immOp,
+                                        bool           mustExpand,
+                                        int            immLowerBound,
+                                        int            immUpperBound,
+                                        bool           hasFullRangeImm,
+                                        bool*          useFallback)
+{
+    *useFallback = false;
+
+    if (!hasFullRangeImm && immOp->IsCnsIntOrI())
+    {
+        const int ival = (int)immOp->AsIntCon()->IconValue();
+        bool      immOutOfRange;
+#ifdef TARGET_XARCH
+        if (HWIntrinsicInfo::isAVX2GatherIntrinsic(intrinsic))
+        {
+            immOutOfRange = (ival != 1) && (ival != 2) && (ival != 4) && (ival != 8);
+        }
+        else
+#endif
+        {
+            immOutOfRange = (ival < immLowerBound) || (ival > immUpperBound);
+        }
+
+        if (immOutOfRange)
+        {
+            assert(!mustExpand);
+            // The imm-HWintrinsics that do not accept all imm8 values may throw
+            // ArgumentOutOfRangeException when the imm argument is not in the valid range
+            return false;
+        }
+    }
+    else if (!immOp->IsCnsIntOrI())
+    {
+        if (HWIntrinsicInfo::NoJmpTableImm(intrinsic))
+        {
+            *useFallback = true;
+            return false;
+        }
+#if defined(TARGET_XARCH)
+        else if (HWIntrinsicInfo::MaybeNoJmpTableImm(intrinsic))
+        {
+#if defined(TARGET_X86)
+            var_types simdBaseType = JitType2PreciseVarType(simdBaseJitType);
+
+            if (varTypeIsLong(simdBaseType))
+            {
+                if (!mustExpand)
+                {
+                    return false;
+                }
+            }
+            else
+#endif // TARGET_XARCH
+            {
+                *useFallback = true;
+                return false;
+            }
+        }
+#endif // TARGET_XARCH
+        else if (!mustExpand)
+        {
+            // When the imm-argument is not a constant and we are not being forced to expand, we need to
+            // return false so a GT_CALL to the intrinsic method is emitted instead. The
+            // intrinsic method is recursive and will be forced to expand, at which point
+            // we emit some less efficient fallback code.
+            return false;
+        }
+    }
+
+    return true;
+}
+
+//------------------------------------------------------------------------
 // impHWIntrinsic: Import a hardware intrinsic as a GT_HWINTRINSIC node if possible
 //
 // Arguments:
@@ -1040,6 +1107,7 @@ struct HWIntrinsicSignatureReader final
 //    clsHnd     -- class handle containing the intrinsic function.
 //    method     -- method handle of the intrinsic function.
 //    sig        -- signature of the intrinsic call
+//    entryPoint -- The entry point information required for R2R scenarios
 //    mustExpand -- true if the intrinsic must return a GenTree*; otherwise, false
 
 // Return Value:
@@ -1048,7 +1116,7 @@ struct HWIntrinsicSignatureReader final
 GenTree* Compiler::impHWIntrinsic(NamedIntrinsic        intrinsic,
                                   CORINFO_CLASS_HANDLE  clsHnd,
                                   CORINFO_METHOD_HANDLE method,
-                                  CORINFO_SIG_INFO*     sig,
+                                  CORINFO_SIG_INFO* sig R2RARG(CORINFO_CONST_LOOKUP* entryPoint),
                                   bool                  mustExpand)
 {
     // NextCallRetAddr requires a CALL, so return nullptr.
@@ -1150,7 +1218,27 @@ GenTree* Compiler::impHWIntrinsic(NamedIntrinsic        intrinsic,
             unsigned int sizeBytes;
 
             simdBaseJitType = getBaseJitTypeAndSizeOfSIMDType(clsHnd, &sizeBytes);
-            assert((category == HW_Category_Special) || (category == HW_Category_Helper) || (sizeBytes != 0));
+
+#if defined(TARGET_ARM64)
+            if (simdBaseJitType == CORINFO_TYPE_UNDEF && HWIntrinsicInfo::HasScalarInputVariant(intrinsic))
+            {
+                // Did not find a valid vector type. The intrinsic has alternate scalar version. Switch to that.
+
+                assert(sizeBytes == 0);
+                intrinsic = HWIntrinsicInfo::GetScalarInputVariant(intrinsic);
+                category  = HWIntrinsicInfo::lookupCategory(intrinsic);
+                isa       = HWIntrinsicInfo::lookupIsa(intrinsic);
+
+                simdBaseJitType = sig->retType;
+                assert(simdBaseJitType != CORINFO_TYPE_VOID);
+                assert(simdBaseJitType != CORINFO_TYPE_UNDEF);
+                assert(simdBaseJitType != CORINFO_TYPE_VALUECLASS);
+            }
+            else
+#endif
+            {
+                assert((category == HW_Category_Special) || (category == HW_Category_Helper) || (sizeBytes != 0));
+            }
         }
     }
 
@@ -1162,189 +1250,90 @@ GenTree* Compiler::impHWIntrinsic(NamedIntrinsic        intrinsic,
     }
 
     var_types simdBaseType = TYP_UNKNOWN;
-    GenTree*  immOp        = nullptr;
 
     if (simdBaseJitType != CORINFO_TYPE_UNDEF)
     {
         simdBaseType = JitType2PreciseVarType(simdBaseJitType);
     }
 
+    const unsigned simdSize = HWIntrinsicInfo::lookupSimdSize(this, intrinsic, sig);
+
     HWIntrinsicSignatureReader sigReader;
     sigReader.Read(info.compCompHnd, sig);
 
+    GenTree* immOp1          = nullptr;
+    GenTree* immOp2          = nullptr;
+    int      immLowerBound   = 0;
+    int      immUpperBound   = 0;
+    bool     hasFullRangeImm = false;
+    bool     useFallback     = false;
+    bool     setMethodHandle = false;
+
+    getHWIntrinsicImmOps(intrinsic, sig, &immOp1, &immOp2);
+
+    // Validate the second immediate
 #ifdef TARGET_ARM64
-    if ((intrinsic == NI_AdvSimd_Insert) || (intrinsic == NI_AdvSimd_InsertScalar) ||
-        ((intrinsic >= NI_AdvSimd_LoadAndInsertScalar) && (intrinsic <= NI_AdvSimd_LoadAndInsertScalarVector64x4)) ||
-        ((intrinsic >= NI_AdvSimd_Arm64_LoadAndInsertScalar) &&
-         (intrinsic <= NI_AdvSimd_Arm64_LoadAndInsertScalarVector128x4)))
+    if (immOp2 != nullptr)
     {
-        assert(sig->numArgs == 3);
-        immOp = impStackTop(1).val;
-        assert(HWIntrinsicInfo::isImmOp(intrinsic, immOp));
-    }
-    else if (intrinsic == NI_AdvSimd_Arm64_InsertSelectedScalar)
-    {
-        // InsertSelectedScalar intrinsic has two immediate operands.
-        // Since all the remaining intrinsics on both platforms have only one immediate
-        // operand, in order to not complicate the shared logic even further we ensure here that
-        // 1) The second immediate operand immOp2 is constant and
-        // 2) its value belongs to [0, sizeof(op3) / sizeof(op3.BaseType)).
-        // If either is false, we should fallback to the managed implementation Insert(dst, dstIdx, Extract(src,
-        // srcIdx)).
-        // The check for the first immediate operand immOp will use the same logic as other intrinsics that have an
-        // immediate operand.
+        unsigned  immSimdSize     = simdSize;
+        var_types immSimdBaseType = simdBaseType;
+        getHWIntrinsicImmTypes(intrinsic, sig, 2, simdBaseType, simdBaseJitType, sigReader.op2ClsHnd,
+                               sigReader.op3ClsHnd, &immSimdSize, &immSimdBaseType);
+        HWIntrinsicInfo::lookupImmBounds(intrinsic, immSimdSize, immSimdBaseType, 2, &immLowerBound, &immUpperBound);
 
-        GenTree* immOp2 = nullptr;
-
-        assert(sig->numArgs == 4);
-
-        immOp  = impStackTop(2).val;
-        immOp2 = impStackTop().val;
-
-        assert(HWIntrinsicInfo::isImmOp(intrinsic, immOp));
-        assert(HWIntrinsicInfo::isImmOp(intrinsic, immOp2));
-
-        if (!immOp2->IsCnsIntOrI())
+        if (!CheckHWIntrinsicImmRange(intrinsic, simdBaseJitType, immOp2, mustExpand, immLowerBound, immUpperBound,
+                                      false, &useFallback))
         {
-            assert(HWIntrinsicInfo::NoJmpTableImm(intrinsic));
-            return impNonConstFallback(intrinsic, retType, simdBaseJitType);
-        }
-
-        unsigned int otherSimdSize    = 0;
-        CorInfoType  otherBaseJitType = getBaseJitTypeAndSizeOfSIMDType(sigReader.op3ClsHnd, &otherSimdSize);
-        var_types    otherBaseType    = JitType2PreciseVarType(otherBaseJitType);
-
-        assert(otherBaseJitType == simdBaseJitType);
-
-        int immLowerBound2 = 0;
-        int immUpperBound2 = 0;
-
-        HWIntrinsicInfo::lookupImmBounds(intrinsic, otherSimdSize, otherBaseType, &immLowerBound2, &immUpperBound2);
-
-        const int immVal2 = (int)immOp2->AsIntCon()->IconValue();
-
-        if ((immVal2 < immLowerBound2) || (immVal2 > immUpperBound2))
-        {
-            assert(!mustExpand);
-            return nullptr;
-        }
-    }
-    else
-#endif
-        if ((sig->numArgs > 0) && HWIntrinsicInfo::isImmOp(intrinsic, impStackTop().val))
-    {
-        // NOTE: The following code assumes that for all intrinsics
-        // taking an immediate operand, that operand will be last.
-        immOp = impStackTop().val;
-    }
-
-    const unsigned simdSize = HWIntrinsicInfo::lookupSimdSize(this, intrinsic, sig);
-
-    int  immLowerBound   = 0;
-    int  immUpperBound   = 0;
-    bool hasFullRangeImm = false;
-
-    if (immOp != nullptr)
-    {
-#ifdef TARGET_XARCH
-        immUpperBound   = HWIntrinsicInfo::lookupImmUpperBound(intrinsic);
-        hasFullRangeImm = HWIntrinsicInfo::HasFullRangeImm(intrinsic);
-#elif defined(TARGET_ARM64)
-        if (category == HW_Category_SIMDByIndexedElement)
-        {
-            CorInfoType  indexedElementBaseJitType;
-            var_types    indexedElementBaseType;
-            unsigned int indexedElementSimdSize = 0;
-
-            if (numArgs == 3)
-            {
-                indexedElementBaseJitType =
-                    getBaseJitTypeAndSizeOfSIMDType(sigReader.op2ClsHnd, &indexedElementSimdSize);
-                indexedElementBaseType = JitType2PreciseVarType(indexedElementBaseJitType);
-            }
-            else
-            {
-                assert(numArgs == 4);
-                indexedElementBaseJitType =
-                    getBaseJitTypeAndSizeOfSIMDType(sigReader.op3ClsHnd, &indexedElementSimdSize);
-                indexedElementBaseType = JitType2PreciseVarType(indexedElementBaseJitType);
-
-                if (intrinsic == NI_Dp_DotProductBySelectedQuadruplet)
-                {
-                    assert(((simdBaseType == TYP_INT) && (indexedElementBaseType == TYP_BYTE)) ||
-                           ((simdBaseType == TYP_UINT) && (indexedElementBaseType == TYP_UBYTE)));
-                    // The second source operand of sdot, udot instructions is an indexed 32-bit element.
-                    indexedElementBaseJitType = simdBaseJitType;
-                    indexedElementBaseType    = simdBaseType;
-                }
-            }
-
-            assert(indexedElementBaseType == simdBaseType);
-            HWIntrinsicInfo::lookupImmBounds(intrinsic, indexedElementSimdSize, simdBaseType, &immLowerBound,
-                                             &immUpperBound);
-        }
-        else
-        {
-            HWIntrinsicInfo::lookupImmBounds(intrinsic, simdSize, simdBaseType, &immLowerBound, &immUpperBound);
-        }
-#endif
-
-        if (!hasFullRangeImm && immOp->IsCnsIntOrI())
-        {
-            const int ival = (int)immOp->AsIntCon()->IconValue();
-            bool      immOutOfRange;
-#ifdef TARGET_XARCH
-            if (HWIntrinsicInfo::isAVX2GatherIntrinsic(intrinsic))
-            {
-                immOutOfRange = (ival != 1) && (ival != 2) && (ival != 4) && (ival != 8);
-            }
-            else
-#endif
-            {
-                immOutOfRange = (ival < immLowerBound) || (ival > immUpperBound);
-            }
-
-            if (immOutOfRange)
-            {
-                assert(!mustExpand);
-                // The imm-HWintrinsics that do not accept all imm8 values may throw
-                // ArgumentOutOfRangeException when the imm argument is not in the valid range
-                return nullptr;
-            }
-        }
-        else if (!immOp->IsCnsIntOrI())
-        {
-            if (HWIntrinsicInfo::NoJmpTableImm(intrinsic))
+            if (useFallback)
             {
                 return impNonConstFallback(intrinsic, retType, simdBaseJitType);
             }
-#if defined(TARGET_XARCH)
-            else if (HWIntrinsicInfo::MaybeNoJmpTableImm(intrinsic))
+            else if (!opts.OptimizationEnabled())
             {
-#if defined(TARGET_X86)
-                var_types simdBaseType = JitType2PreciseVarType(simdBaseJitType);
-
-                if (varTypeIsLong(simdBaseType))
-                {
-                    if (!mustExpand)
-                    {
-                        return nullptr;
-                    }
-                }
-                else
-#endif // TARGET_XARCH
-                {
-                    return impNonConstFallback(intrinsic, retType, simdBaseJitType);
-                }
-            }
-#endif // TARGET_XARCH
-            else if (!mustExpand)
-            {
-                // When the imm-argument is not a constant and we are not being forced to expand, we need to
-                // return nullptr so a GT_CALL to the intrinsic method is emitted instead. The
-                // intrinsic method is recursive and will be forced to expand, at which point
-                // we emit some less efficient fallback code.
+                // Only enable late stage rewriting if optimizations are enabled
+                // as we won't otherwise encounter a constant at the later point
                 return nullptr;
+            }
+            else
+            {
+                setMethodHandle = true;
+            }
+        }
+    }
+#else
+    assert(immOp2 == nullptr);
+#endif
+
+    // Validate the first immediate
+    if (immOp1 != nullptr)
+    {
+#ifdef TARGET_ARM64
+        unsigned  immSimdSize     = simdSize;
+        var_types immSimdBaseType = simdBaseType;
+        getHWIntrinsicImmTypes(intrinsic, sig, 1, simdBaseType, simdBaseJitType, sigReader.op2ClsHnd,
+                               sigReader.op3ClsHnd, &immSimdSize, &immSimdBaseType);
+        HWIntrinsicInfo::lookupImmBounds(intrinsic, immSimdSize, immSimdBaseType, 1, &immLowerBound, &immUpperBound);
+#else
+        immUpperBound   = HWIntrinsicInfo::lookupImmUpperBound(intrinsic);
+        hasFullRangeImm = HWIntrinsicInfo::HasFullRangeImm(intrinsic);
+#endif
+
+        if (!CheckHWIntrinsicImmRange(intrinsic, simdBaseJitType, immOp1, mustExpand, immLowerBound, immUpperBound,
+                                      hasFullRangeImm, &useFallback))
+        {
+            if (useFallback)
+            {
+                return impNonConstFallback(intrinsic, retType, simdBaseJitType);
+            }
+            else if (!opts.OptimizationEnabled())
+            {
+                // Only enable late stage rewriting if optimizations are enabled
+                // as we won't otherwise encounter a constant at the later point
+                return nullptr;
+            }
+            else
+            {
+                setMethodHandle = true;
             }
         }
     }
@@ -1355,6 +1344,15 @@ GenTree* Compiler::impHWIntrinsic(NamedIntrinsic        intrinsic,
         // where no SIMD local vars are in use. This is the same logic as is used for FEATURE_SIMD.
         compFloatingPointUsed = true;
     }
+
+    var_types nodeRetType = retType;
+#if defined(TARGET_ARM64)
+    if (HWIntrinsicInfo::ReturnsPerElementMask(intrinsic))
+    {
+        // Ensure the result is generated to a mask.
+        nodeRetType = TYP_MASK;
+    }
+#endif // defined(TARGET_ARM64)
 
     // table-driven importer of simple intrinsics
     if (impIsTableDrivenHWIntrinsic(intrinsic, category))
@@ -1389,17 +1387,45 @@ GenTree* Compiler::impHWIntrinsic(NamedIntrinsic        intrinsic,
 
         switch (numArgs)
         {
+            case 4:
+                op4 = getArgForHWIntrinsic(sigReader.GetOp4Type(), sigReader.op4ClsHnd);
+                op4 = addRangeCheckIfNeeded(intrinsic, op4, mustExpand, immLowerBound, immUpperBound);
+                op3 = getArgForHWIntrinsic(sigReader.GetOp3Type(), sigReader.op3ClsHnd);
+                op2 = getArgForHWIntrinsic(sigReader.GetOp2Type(), sigReader.op2ClsHnd);
+                op1 = getArgForHWIntrinsic(sigReader.GetOp1Type(), sigReader.op1ClsHnd);
+                break;
+
+            case 3:
+                op3 = getArgForHWIntrinsic(sigReader.GetOp3Type(), sigReader.op3ClsHnd);
+                op2 = getArgForHWIntrinsic(sigReader.GetOp2Type(), sigReader.op2ClsHnd);
+                op1 = getArgForHWIntrinsic(sigReader.GetOp1Type(), sigReader.op1ClsHnd);
+                break;
+
+            case 2:
+                op2 = getArgForHWIntrinsic(sigReader.GetOp2Type(), sigReader.op2ClsHnd);
+                op2 = addRangeCheckIfNeeded(intrinsic, op2, mustExpand, immLowerBound, immUpperBound);
+                op1 = getArgForHWIntrinsic(sigReader.GetOp1Type(), sigReader.op1ClsHnd);
+                break;
+
+            case 1:
+                op1 = getArgForHWIntrinsic(sigReader.GetOp1Type(), sigReader.op1ClsHnd);
+                break;
+
+            default:
+                break;
+        }
+
+        switch (numArgs)
+        {
             case 0:
             {
                 assert(!isScalar);
-                retNode = gtNewSimdHWIntrinsicNode(retType, intrinsic, simdBaseJitType, simdSize);
+                retNode = gtNewSimdHWIntrinsicNode(nodeRetType, intrinsic, simdBaseJitType, simdSize);
                 break;
             }
 
             case 1:
             {
-                op1 = getArgForHWIntrinsic(sigReader.GetOp1Type(), sigReader.op1ClsHnd);
-
                 if ((category == HW_Category_MemoryLoad) && op1->OperIs(GT_CAST))
                 {
                     // Although the API specifies a pointer, if what we have is a BYREF, that's what
@@ -1410,8 +1436,8 @@ GenTree* Compiler::impHWIntrinsic(NamedIntrinsic        intrinsic,
                     }
                 }
 
-                retNode = isScalar ? gtNewScalarHWIntrinsicNode(retType, op1, intrinsic)
-                                   : gtNewSimdHWIntrinsicNode(retType, op1, intrinsic, simdBaseJitType, simdSize);
+                retNode = isScalar ? gtNewScalarHWIntrinsicNode(nodeRetType, op1, intrinsic)
+                                   : gtNewSimdHWIntrinsicNode(nodeRetType, op1, intrinsic, simdBaseJitType, simdSize);
 
 #if defined(TARGET_XARCH)
                 switch (intrinsic)
@@ -1458,12 +1484,9 @@ GenTree* Compiler::impHWIntrinsic(NamedIntrinsic        intrinsic,
 
             case 2:
             {
-                op2 = getArgForHWIntrinsic(sigReader.GetOp2Type(), sigReader.op2ClsHnd);
-                op2 = addRangeCheckIfNeeded(intrinsic, op2, mustExpand, immLowerBound, immUpperBound);
-                op1 = getArgForHWIntrinsic(sigReader.GetOp1Type(), sigReader.op1ClsHnd);
-
-                retNode = isScalar ? gtNewScalarHWIntrinsicNode(retType, op1, op2, intrinsic)
-                                   : gtNewSimdHWIntrinsicNode(retType, op1, op2, intrinsic, simdBaseJitType, simdSize);
+                retNode = isScalar
+                              ? gtNewScalarHWIntrinsicNode(nodeRetType, op1, op2, intrinsic)
+                              : gtNewSimdHWIntrinsicNode(nodeRetType, op1, op2, intrinsic, simdBaseJitType, simdSize);
 
 #ifdef TARGET_XARCH
                 if ((intrinsic == NI_SSE42_Crc32) || (intrinsic == NI_SSE42_X64_Crc32))
@@ -1505,6 +1528,17 @@ GenTree* Compiler::impHWIntrinsic(NamedIntrinsic        intrinsic,
                         }
                         break;
 
+                    case NI_Sve_CreateWhileLessThanMask8Bit:
+                    case NI_Sve_CreateWhileLessThanOrEqualMask8Bit:
+                    case NI_Sve_CreateWhileLessThanMask16Bit:
+                    case NI_Sve_CreateWhileLessThanOrEqualMask16Bit:
+                    case NI_Sve_CreateWhileLessThanMask32Bit:
+                    case NI_Sve_CreateWhileLessThanOrEqualMask32Bit:
+                    case NI_Sve_CreateWhileLessThanMask64Bit:
+                    case NI_Sve_CreateWhileLessThanOrEqualMask64Bit:
+                        retNode->AsHWIntrinsic()->SetAuxiliaryJitType(sigReader.op1JitType);
+                        break;
+
                     default:
                         break;
                 }
@@ -1514,10 +1548,6 @@ GenTree* Compiler::impHWIntrinsic(NamedIntrinsic        intrinsic,
 
             case 3:
             {
-                op3 = getArgForHWIntrinsic(sigReader.GetOp3Type(), sigReader.op3ClsHnd);
-                op2 = getArgForHWIntrinsic(sigReader.GetOp2Type(), sigReader.op2ClsHnd);
-                op1 = getArgForHWIntrinsic(sigReader.GetOp1Type(), sigReader.op1ClsHnd);
-
 #ifdef TARGET_ARM64
                 if (intrinsic == NI_AdvSimd_LoadAndInsertScalar)
                 {
@@ -1543,30 +1573,49 @@ GenTree* Compiler::impHWIntrinsic(NamedIntrinsic        intrinsic,
                     op3 = addRangeCheckIfNeeded(intrinsic, op3, mustExpand, immLowerBound, immUpperBound);
                 }
 
-                retNode = isScalar
-                              ? gtNewScalarHWIntrinsicNode(retType, op1, op2, op3, intrinsic)
-                              : gtNewSimdHWIntrinsicNode(retType, op1, op2, op3, intrinsic, simdBaseJitType, simdSize);
+                retNode = isScalar ? gtNewScalarHWIntrinsicNode(nodeRetType, op1, op2, op3, intrinsic)
+                                   : gtNewSimdHWIntrinsicNode(nodeRetType, op1, op2, op3, intrinsic, simdBaseJitType,
+                                                              simdSize);
 
-#ifdef TARGET_XARCH
-                if ((intrinsic == NI_AVX2_GatherVector128) || (intrinsic == NI_AVX2_GatherVector256))
+                switch (intrinsic)
                 {
-                    assert(varTypeIsSIMD(op2->TypeGet()));
-                    retNode->AsHWIntrinsic()->SetAuxiliaryJitType(getBaseJitTypeOfSIMDType(sigReader.op2ClsHnd));
-                }
+#if defined(TARGET_XARCH)
+                    case NI_AVX2_GatherVector128:
+                    case NI_AVX2_GatherVector256:
+                        assert(varTypeIsSIMD(op2->TypeGet()));
+                        retNode->AsHWIntrinsic()->SetAuxiliaryJitType(getBaseJitTypeOfSIMDType(sigReader.op2ClsHnd));
+                        break;
+
+#elif defined(TARGET_ARM64)
+                    case NI_Sve_GatherVector:
+                    case NI_Sve_GatherVectorByteZeroExtend:
+                    case NI_Sve_GatherVectorInt16SignExtend:
+                    case NI_Sve_GatherVectorInt16WithByteOffsetsSignExtend:
+                    case NI_Sve_GatherVectorInt32SignExtend:
+                    case NI_Sve_GatherVectorInt32WithByteOffsetsSignExtend:
+                    case NI_Sve_GatherVectorSByteSignExtend:
+                    case NI_Sve_GatherVectorUInt16WithByteOffsetsZeroExtend:
+                    case NI_Sve_GatherVectorUInt16ZeroExtend:
+                    case NI_Sve_GatherVectorUInt32WithByteOffsetsZeroExtend:
+                    case NI_Sve_GatherVectorUInt32ZeroExtend:
+                    case NI_Sve_GatherVectorWithByteOffsets:
+                        assert(varTypeIsSIMD(op3->TypeGet()));
+                        retNode->AsHWIntrinsic()->SetAuxiliaryJitType(getBaseJitTypeOfSIMDType(sigReader.op3ClsHnd));
+                        break;
 #endif
+
+                    default:
+                        break;
+                }
+
                 break;
             }
 
             case 4:
             {
-                op4 = getArgForHWIntrinsic(sigReader.GetOp4Type(), sigReader.op4ClsHnd);
-                op4 = addRangeCheckIfNeeded(intrinsic, op4, mustExpand, immLowerBound, immUpperBound);
-                op3 = getArgForHWIntrinsic(sigReader.GetOp3Type(), sigReader.op3ClsHnd);
-                op2 = getArgForHWIntrinsic(sigReader.GetOp2Type(), sigReader.op2ClsHnd);
-                op1 = getArgForHWIntrinsic(sigReader.GetOp1Type(), sigReader.op1ClsHnd);
-
                 assert(!isScalar);
-                retNode = gtNewSimdHWIntrinsicNode(retType, op1, op2, op3, op4, intrinsic, simdBaseJitType, simdSize);
+                retNode =
+                    gtNewSimdHWIntrinsicNode(nodeRetType, op1, op2, op3, op4, intrinsic, simdBaseJitType, simdSize);
                 break;
             }
 
@@ -1576,8 +1625,72 @@ GenTree* Compiler::impHWIntrinsic(NamedIntrinsic        intrinsic,
     }
     else
     {
-        retNode = impSpecialIntrinsic(intrinsic, clsHnd, method, sig, simdBaseJitType, retType, simdSize);
+        retNode = impSpecialIntrinsic(intrinsic, clsHnd, method, sig R2RARG(entryPoint), simdBaseJitType, nodeRetType,
+                                      simdSize, mustExpand);
     }
+
+    if (setMethodHandle && (retNode != nullptr))
+    {
+        retNode->AsHWIntrinsic()->SetMethodHandle(this, method R2RARG(*entryPoint));
+    }
+
+#if defined(TARGET_ARM64)
+    if (HWIntrinsicInfo::IsExplicitMaskedOperation(intrinsic))
+    {
+        assert(numArgs > 0);
+        GenTree* op1 = retNode->AsHWIntrinsic()->Op(1);
+        if (intrinsic == NI_Sve_ConditionalSelect)
+        {
+            if (op1->IsVectorAllBitsSet() || op1->IsMaskAllBitsSet())
+            {
+                return retNode->AsHWIntrinsic()->Op(2);
+            }
+            else if (op1->IsVectorZero())
+            {
+                return retNode->AsHWIntrinsic()->Op(3);
+            }
+        }
+        else if (intrinsic == NI_Sve_GetActiveElementCount)
+        {
+            GenTree* op2 = retNode->AsHWIntrinsic()->Op(2);
+
+            // HWInstrinsic requires a mask for op2
+            if (!varTypeIsMask(op2))
+            {
+                retNode->AsHWIntrinsic()->Op(2) =
+                    gtNewSimdCvtVectorToMaskNode(TYP_MASK, op2, simdBaseJitType, simdSize);
+            }
+        }
+
+        if (!varTypeIsMask(op1))
+        {
+            // Op1 input is a vector. HWInstrinsic requires a mask.
+            retNode->AsHWIntrinsic()->Op(1) = gtNewSimdCvtVectorToMaskNode(TYP_MASK, op1, simdBaseJitType, simdSize);
+        }
+
+        if (HWIntrinsicInfo::IsMultiReg(intrinsic))
+        {
+            assert(HWIntrinsicInfo::IsExplicitMaskedOperation(retNode->AsHWIntrinsic()->GetHWIntrinsicId()));
+            assert(HWIntrinsicInfo::IsMultiReg(retNode->AsHWIntrinsic()->GetHWIntrinsicId()));
+            retNode =
+                impStoreMultiRegValueToVar(retNode, sig->retTypeSigClass DEBUGARG(CorInfoCallConvExtension::Managed));
+        }
+    }
+
+    if (retType != nodeRetType)
+    {
+        // HWInstrinsic returns a mask, but all returns must be vectors, so convert mask to vector.
+        assert(HWIntrinsicInfo::ReturnsPerElementMask(intrinsic));
+        assert(nodeRetType == TYP_MASK);
+
+        GenTreeHWIntrinsic* op = retNode->AsHWIntrinsic();
+
+        CorInfoType simdBaseJitType = op->GetSimdBaseJitType();
+        unsigned    simdSize        = op->GetSimdSize();
+
+        retNode = gtNewSimdCvtMaskToVectorNode(retType, op, simdBaseJitType, simdSize);
+    }
+#endif // defined(TARGET_ARM64)
 
     if ((retNode != nullptr) && retNode->OperIs(GT_HWINTRINSIC))
     {
